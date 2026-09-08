@@ -30,5 +30,36 @@ function setupAuthForm() {
   });
 }
 
+function setupLogout() {
+  if (!location.pathname.endsWith('profile.html')) return;
+
+  const profileCard = document.querySelector('.profile-card');
+  if (!profileCard || !localStorage.getItem('blog_auth_token')) return;
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'button full';
+  button.textContent = '로그아웃';
+  button.style.marginTop = '12px';
+
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+
+    try {
+      await callAuthApi({
+        action: 'logout',
+        token: localStorage.getItem('blog_auth_token'),
+      });
+    } finally {
+      localStorage.removeItem('blog_auth_token');
+      localStorage.removeItem('blog_user');
+      location.href = 'login.html';
+    }
+  });
+
+  profileCard.appendChild(button);
+}
+
 document.querySelectorAll('form:not(.auth-card form)').forEach((form) => form.addEventListener('submit', (event) => { event.preventDefault(); const message = form.querySelector('.form-message'); if (message) message.textContent = form.dataset.message || '처리되었습니다.'; }));
 setupAuthForm();
+setupLogout();
