@@ -15,11 +15,13 @@ function setup() {
 }
 
 function doGet() {
+  ensureSetup_();
   return json_({ ok: true, message: 'Authentication API is running.' });
 }
 
 function doPost(e) {
   try {
+    ensureSetup_();
     const data = JSON.parse(e.postData.contents || '{}');
     if (data.action === 'signup') return signup_(data);
     if (data.action === 'login') return login_(data);
@@ -108,8 +110,19 @@ function hash_(password, salt) {
 
 function sheet_(name) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
-  if (!sheet) throw new Error('setup()을 먼저 실행하세요.');
+  if (!sheet) throw new Error('필요한 시트가 생성되지 않았습니다.');
   return sheet;
+}
+
+function ensureSetup_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  createSheet_(ss, USERS_SHEET, ['id', 'name', 'email', 'passwordHash', 'salt', 'createdAt']);
+  createSheet_(ss, SESSIONS_SHEET, ['token', 'userId', 'expiresAt', 'createdAt']);
+
+  const properties = PropertiesService.getScriptProperties();
+  if (!properties.getProperty('PASSWORD_PEPPER')) {
+    properties.setProperty('PASSWORD_PEPPER', Utilities.getUuid() + Utilities.getUuid());
+  }
 }
 
 function createSheet_(ss, name, headers) {
