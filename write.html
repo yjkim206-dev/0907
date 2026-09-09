@@ -1,1 +1,60 @@
-<!doctype html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>글 작성 | 모퉁이 기록</title><link rel="stylesheet" href="css/style.css"></head><body><header class="site-header"><div class="container header-inner"><a class="brand" href="index.html">모퉁이 <span>기록</span></a><button class="menu-toggle">☰</button><nav class="site-nav"><a href="index.html">홈</a><a href="posts.html">글 목록</a><a href="profile.html">프로필</a><a href="login.html">로그인</a><a class="nav-action active" href="write.html">글쓰기</a></nav></div></header><main class="editor-wrap"><section class="form-card"><p class="eyebrow">NEW POST</p><h1>새로운 기록</h1><form data-message="글이 임시 저장되었습니다."><label class="field">카테고리<select><option>Design</option><option>Work</option><option>Life</option><option>Note</option></select></label><label class="field">제목<input type="text" placeholder="글의 제목을 입력하세요" required></label><label class="field">내용<textarea placeholder="오늘의 생각을 자유롭게 기록해 보세요." required></textarea></label><div class="form-actions"><button type="button" class="button secondary-btn">미리보기</button><button class="button">발행하기</button></div><p class="form-message form-note"></p></form></section></main><script src="js/main.js"></script></body></html>
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>게시글 작성 | 모퉁이 기록</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="index.html">모퉁이 <span>기록</span></a>
+      <button class="menu-toggle" aria-label="메뉴 열기" aria-expanded="false">☰</button>
+      <nav class="site-nav">
+        <a href="index.html">홈</a>
+        <a href="posts.html">게시글 목록</a>
+        <a href="profile.html">프로필</a>
+        <a href="login.html">로그인</a>
+        <a class="nav-action active" href="write.html">글쓰기</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="editor-wrap">
+    <section class="form-card">
+      <p class="eyebrow">NEW POST</p>
+      <h1>새로운 기록</h1>
+      <p>오늘 남기고 싶은 생각을 제목과 본문으로 정리해 보세요.</p>
+
+      <form data-message="게시글이 발행되었습니다.">
+        <label class="field">카테고리
+          <select name="category">
+            <option>Design</option>
+            <option>Work</option>
+            <option>Life</option>
+            <option>Note</option>
+          </select>
+        </label>
+
+        <label class="field">제목
+          <input name="title" type="text" placeholder="글의 제목을 입력하세요" required>
+        </label>
+
+        <label class="field">내용
+          <textarea name="content" rows="14" placeholder="오늘의 생각을 자유롭게 기록해 보세요." required></textarea>
+        </label>
+
+        <div class="form-actions">
+          <button type="button" class="button secondary-btn">미리보기</button>
+          <button type="submit" class="button">발행하기</button>
+        </div>
+
+        <p class="form-message form-note" role="status"></p>
+      </form>
+    </section>
+  </main>
+
+  <script src="js/main.js"></script>
+</body>
+</html>
