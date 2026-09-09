@@ -1,0 +1,10 @@
+.auth-card button[type="submit"] {
+  scroll-margin-top: 84px;
+}
+
+@media (max-width: 720px) {
+  .auth-wrap {
+    margin: 0 auto 44px;
+    padding-top: 72px;
+  }
+}
