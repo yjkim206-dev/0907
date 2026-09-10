@@ -96,6 +96,27 @@ function setupWriteForm() {
   const previewTitle = preview.querySelector('.post-preview-title');
   const previewContent = preview.querySelector('.post-preview-content');
 
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const titleValue = title.value.trim();
+    const contentValue = content.value.trim();
+    if (!titleValue || !contentValue) {
+      showMessage(form, '제목과 내용을 입력해 주세요.', true);
+      return;
+    }
+
+    const posts = JSON.parse(localStorage.getItem('blog_posts') || '[]');
+    posts.unshift({
+      title: titleValue,
+      content: contentValue,
+      category: category.value,
+      date: new Date().toISOString(),
+    });
+    localStorage.setItem('blog_posts', JSON.stringify(posts));
+    showMessage(form, '게시글이 발행되어 목록에 추가되었습니다.');
+    setTimeout(() => { location.href = 'posts.html'; }, 600);
+  });
+
   previewButton.addEventListener('click', () => {
     const titleValue = title.value.trim();
     const contentValue = content.value.trim();
@@ -112,8 +133,35 @@ function setupWriteForm() {
   });
 }
 
-document.querySelectorAll('form:not(.auth-card form)').forEach((form) => form.addEventListener('submit', (event) => { event.preventDefault(); const message = form.querySelector('.form-message'); if (message) message.textContent = form.dataset.message || '처리되었습니다.'; }));
+function setupPostList() {
+  const list = document.querySelector('#post-list');
+  if (!list) return;
+  const posts = JSON.parse(localStorage.getItem('blog_posts') || '[]');
+  posts.forEach((post) => {
+    const item = document.createElement('article');
+    item.className = 'list-post user-post';
+    const date = new Date(post.date).toLocaleDateString('ko-KR').replaceAll('. ', '.').replace(/\.$/, '');
+    const dateColumn = document.createElement('div');
+    dateColumn.className = 'list-date';
+    dateColumn.textContent = `${date}\n${post.category.toUpperCase()}`;
+    dateColumn.style.whiteSpace = 'pre-line';
+    const body = document.createElement('div');
+    const heading = document.createElement('h2');
+    heading.textContent = post.title;
+    const excerpt = document.createElement('p');
+    excerpt.textContent = post.content;
+    const label = document.createElement('span');
+    label.className = 'text-link';
+    label.textContent = '내가 작성한 글';
+    body.append(heading, excerpt, label);
+    item.append(dateColumn, body);
+    list.prepend(item);
+  });
+}
+
+document.querySelectorAll('form:not(.auth-card form):not(.editor-wrap form)').forEach((form) => form.addEventListener('submit', (event) => { event.preventDefault(); const message = form.querySelector('.form-message'); if (message) message.textContent = form.dataset.message || '처리되었습니다.'; }));
 setupAuthForm();
 setupAuthNavigation();
 setupLogout();
 setupWriteForm();
+setupPostList();
