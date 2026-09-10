@@ -107,6 +107,7 @@ function setupWriteForm() {
 
     const posts = JSON.parse(localStorage.getItem('blog_posts') || '[]');
     posts.unshift({
+      id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
       title: titleValue,
       content: contentValue,
       category: category.value,
@@ -138,6 +139,7 @@ function setupPostList() {
   if (!list) return;
   const posts = JSON.parse(localStorage.getItem('blog_posts') || '[]');
   posts.forEach((post) => {
+    if (!post.id) post.id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
     const item = document.createElement('article');
     item.className = 'list-post user-post';
     const date = new Date(post.date).toLocaleDateString('ko-KR').replaceAll('. ', '.').replace(/\.$/, '');
@@ -153,10 +155,22 @@ function setupPostList() {
     const label = document.createElement('span');
     label.className = 'text-link';
     label.textContent = '내가 작성한 글';
-    body.append(heading, excerpt, label);
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'post-delete';
+    deleteButton.textContent = '삭제';
+    deleteButton.addEventListener('click', () => {
+      const currentPosts = JSON.parse(localStorage.getItem('blog_posts') || '[]');
+      const postIndex = currentPosts.findIndex((currentPost) => currentPost.id === post.id);
+      if (postIndex >= 0) currentPosts.splice(postIndex, 1);
+      localStorage.setItem('blog_posts', JSON.stringify(currentPosts));
+      item.remove();
+    });
+    body.append(heading, excerpt, label, deleteButton);
     item.append(dateColumn, body);
     list.prepend(item);
   });
+  localStorage.setItem('blog_posts', JSON.stringify(posts));
 }
 
 document.querySelectorAll('form:not(.auth-card form):not(.editor-wrap form)').forEach((form) => form.addEventListener('submit', (event) => { event.preventDefault(); const message = form.querySelector('.form-message'); if (message) message.textContent = form.dataset.message || '처리되었습니다.'; }));

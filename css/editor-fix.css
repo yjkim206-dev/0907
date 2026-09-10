@@ -25,3 +25,18 @@
   line-height: 1.9;
   white-space: pre-wrap;
 }
+
+.post-delete {
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  color: var(--sub);
+  cursor: pointer;
+  font-size: 13px;
+  margin-top: 12px;
+  padding: 0;
+}
+
+.post-delete:hover {
+  color: #c0392b;
+}
