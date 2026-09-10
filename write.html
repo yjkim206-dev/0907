@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>게시글 작성 | 모퉁이 기록</title>
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/editor-fix.css">
 </head>
 <body>
   <header class="site-header">
@@ -52,6 +53,13 @@
 
         <p class="form-message form-note" role="status"></p>
       </form>
+
+      <article class="post-preview" aria-live="polite" hidden>
+        <p class="eyebrow">PREVIEW</p>
+        <p class="post-preview-meta"></p>
+        <h2 class="post-preview-title"></h2>
+        <div class="post-preview-content"></div>
+      </article>
     </section>
   </main>
 

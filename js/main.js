@@ -83,7 +83,37 @@ function setupLogout() {
   profileCard.appendChild(button);
 }
 
+function setupWriteForm() {
+  const form = document.querySelector('.editor-wrap form');
+  const preview = document.querySelector('.post-preview');
+  const previewButton = form?.querySelector('.secondary-btn');
+  if (!form || !preview || !previewButton) return;
+
+  const category = form.querySelector('[name="category"]');
+  const title = form.querySelector('[name="title"]');
+  const content = form.querySelector('[name="content"]');
+  const previewMeta = preview.querySelector('.post-preview-meta');
+  const previewTitle = preview.querySelector('.post-preview-title');
+  const previewContent = preview.querySelector('.post-preview-content');
+
+  previewButton.addEventListener('click', () => {
+    const titleValue = title.value.trim();
+    const contentValue = content.value.trim();
+    if (!titleValue || !contentValue) {
+      showMessage(form, '제목과 내용을 입력한 뒤 미리보기를 눌러 주세요.', true);
+      return;
+    }
+
+    previewMeta.textContent = `${category.value.toUpperCase()} · 미리보기`;
+    previewTitle.textContent = titleValue;
+    previewContent.textContent = contentValue;
+    preview.hidden = false;
+    preview.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
 document.querySelectorAll('form:not(.auth-card form)').forEach((form) => form.addEventListener('submit', (event) => { event.preventDefault(); const message = form.querySelector('.form-message'); if (message) message.textContent = form.dataset.message || '처리되었습니다.'; }));
 setupAuthForm();
 setupAuthNavigation();
 setupLogout();
+setupWriteForm();

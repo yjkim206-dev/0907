@@ -1,0 +1,27 @@
+.post-preview {
+  border-top: 1px solid var(--line);
+  margin-top: 36px;
+  padding-top: 32px;
+  scroll-margin-top: 88px;
+}
+
+.post-preview-meta {
+  color: var(--sub);
+  font-size: 13px;
+  font-weight: bold;
+  margin: 0 0 8px;
+}
+
+.post-preview-title {
+  font-family: Georgia, serif;
+  font-size: clamp(28px, 5vw, 44px);
+  line-height: 1.2;
+  margin: 0 0 24px;
+}
+
+.post-preview-content {
+  color: var(--sub);
+  font-size: 17px;
+  line-height: 1.9;
+  white-space: pre-wrap;
+}
