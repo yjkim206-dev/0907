@@ -6,6 +6,30 @@ if (menu && nav) menu.addEventListener('click', () => { const open = nav.classLi
 function showMessage(form, message, error = false) { const target = form.querySelector('.form-message'); if (!target) return; target.textContent = message; target.style.color = error ? '#c0392b' : ''; }
 async function callAuthApi(payload) { const response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) }); return response.json(); }
 
+function clearAuth() {
+  localStorage.removeItem('blog_auth_token');
+  localStorage.removeItem('blog_user');
+}
+
+function setupAuthNavigation() {
+  const loginLink = document.querySelector('.site-nav a[href="login.html"]');
+  if (!loginLink || !localStorage.getItem('blog_auth_token')) return;
+
+  loginLink.textContent = '로그아웃';
+  loginLink.href = '#';
+  loginLink.addEventListener('click', async (event) => {
+    event.preventDefault();
+    loginLink.textContent = '로그아웃 중...';
+    loginLink.style.pointerEvents = 'none';
+    try {
+      await callAuthApi({ action: 'logout', token: localStorage.getItem('blog_auth_token') });
+    } finally {
+      clearAuth();
+      location.href = 'index.html';
+    }
+  });
+}
+
 function setupAuthForm() {
   const form = document.querySelector('.auth-card form');
   if (!form) return;
@@ -51,8 +75,7 @@ function setupLogout() {
         token: localStorage.getItem('blog_auth_token'),
       });
     } finally {
-      localStorage.removeItem('blog_auth_token');
-      localStorage.removeItem('blog_user');
+      clearAuth();
       location.href = 'login.html';
     }
   });
@@ -62,4 +85,5 @@ function setupLogout() {
 
 document.querySelectorAll('form:not(.auth-card form)').forEach((form) => form.addEventListener('submit', (event) => { event.preventDefault(); const message = form.querySelector('.form-message'); if (message) message.textContent = form.dataset.message || '처리되었습니다.'; }));
 setupAuthForm();
+setupAuthNavigation();
 setupLogout();
