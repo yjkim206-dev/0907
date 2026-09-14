@@ -1,4 +1,4 @@
-const API_URL = 'https://script.google.com/macros/s/AKfycbxJjy--ozSWz_5lCg3ocz2IKjYVMepr0xp0rpR1nNDfWxQD-aTYktT4Vcn3QluFzo0q/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzBNW31P5Unax_uOhQf_3SudfqifZ1KdRf5ywsJJL8xy7m0jui0yw7_ZcMU__qZbiSh/exec';
 const POSTS_KEY = 'blog_posts';
 const TOKEN_KEY = 'blog_auth_token';
 const nav = document.querySelector('.site-nav');
