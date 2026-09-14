@@ -13,7 +13,7 @@ async function callAuthApi(payload) { const response = await fetch(API_URL, { me
 function clearAuth() { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('blog_user'); }
 function setupAuthNavigation() {
   if (!nav) return; const login = nav.querySelector('a[href="login.html"]'); const write = nav.querySelector('a[href="write.html"]');
-  if (localStorage.getItem(TOKEN_KEY)) { if (login) { login.textContent = '로그아웃'; login.href = '#logout'; login.addEventListener('click', async e => { e.preventDefault(); try { await callAuthApi({ action: 'logout', token: localStorage.getItem(TOKEN_KEY) }); } finally { clearAuth(); location.href = 'index.html'; } }); } if (!nav.querySelector('[data-profile-link]')) { const link = document.createElement('a'); link.href = 'profile.html'; link.dataset.profileLink = 'true'; link.textContent = '프로필'; nav.insertBefore(link, login || write); } }
+  if (localStorage.getItem(TOKEN_KEY)) { if (login) { login.textContent = '로그아웃'; login.href = '#logout'; login.addEventListener('click', async e => { e.preventDefault(); try { await callAuthApi({ action: 'logout', token: localStorage.getItem(TOKEN_KEY) }); } finally { clearAuth(); location.href = 'index.html'; } }); } const profile = nav.querySelector('a[href="profile.html"]'); if (profile) profile.dataset.profileLink = 'true'; else { const link = document.createElement('a'); link.href = 'profile.html'; link.dataset.profileLink = 'true'; link.textContent = '프로필'; nav.insertBefore(link, login || write); } }
   else if (login && !nav.querySelector('[data-signup-link]')) { const link = document.createElement('a'); link.href = 'signup.html'; link.dataset.signupLink = 'true'; link.textContent = '회원가입'; nav.insertBefore(link, write); }
 }
 function setupAuthForm() {
