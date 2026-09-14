@@ -1,181 +1,35 @@
 const API_URL = 'https://script.google.com/macros/s/AKfycbxJjy--ozSWz_5lCg3ocz2IKjYVMepr0xp0rpR1nNDfWxQD-aTYktT4Vcn3QluFzo0q/exec';
+const POSTS_KEY = 'blog_posts';
+const TOKEN_KEY = 'blog_auth_token';
 const nav = document.querySelector('.site-nav');
 const menu = document.querySelector('.menu-toggle');
 if (menu && nav) menu.addEventListener('click', () => { const open = nav.classList.toggle('is-open'); menu.setAttribute('aria-expanded', String(open)); });
-
-function showMessage(form, message, error = false) { const target = form.querySelector('.form-message'); if (!target) return; target.textContent = message; target.style.color = error ? '#c0392b' : ''; }
+function readPosts() { try { return JSON.parse(localStorage.getItem(POSTS_KEY) || '[]'); } catch { return []; } }
+function savePosts(posts) { localStorage.setItem(POSTS_KEY, JSON.stringify(posts)); }
+function newId() { return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`; }
+function formatDate(value) { return new Date(value).toLocaleDateString('ko-KR').replaceAll('. ', '.').replace(/\.$/, ''); }
+function showMessage(form, message, error = false) { const target = form.querySelector('.form-message'); if (target) { target.textContent = message; target.style.color = error ? '#c0392b' : ''; } }
 async function callAuthApi(payload) { const response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) }); return response.json(); }
-
-function clearAuth() {
-  localStorage.removeItem('blog_auth_token');
-  localStorage.removeItem('blog_user');
-}
-
+function clearAuth() { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('blog_user'); }
 function setupAuthNavigation() {
-  const loginLink = document.querySelector('.site-nav a[href="login.html"]');
-  if (!loginLink || !localStorage.getItem('blog_auth_token')) return;
-
-  loginLink.textContent = '로그아웃';
-  loginLink.href = '#';
-  loginLink.addEventListener('click', async (event) => {
-    event.preventDefault();
-    loginLink.textContent = '로그아웃 중...';
-    loginLink.style.pointerEvents = 'none';
-    try {
-      await callAuthApi({ action: 'logout', token: localStorage.getItem('blog_auth_token') });
-    } finally {
-      clearAuth();
-      location.href = 'index.html';
-    }
-  });
+  if (!nav) return; const login = nav.querySelector('a[href="login.html"]'); const write = nav.querySelector('a[href="write.html"]');
+  if (localStorage.getItem(TOKEN_KEY)) { if (login) { login.textContent = '로그아웃'; login.href = '#logout'; login.addEventListener('click', async e => { e.preventDefault(); try { await callAuthApi({ action: 'logout', token: localStorage.getItem(TOKEN_KEY) }); } finally { clearAuth(); location.href = 'index.html'; } }); } if (!nav.querySelector('[data-profile-link]')) { const link = document.createElement('a'); link.href = 'profile.html'; link.dataset.profileLink = 'true'; link.textContent = '프로필'; nav.insertBefore(link, login || write); } }
+  else if (login && !nav.querySelector('[data-signup-link]')) { const link = document.createElement('a'); link.href = 'signup.html'; link.dataset.signupLink = 'true'; link.textContent = '회원가입'; nav.insertBefore(link, write); }
 }
-
 function setupAuthForm() {
-  const form = document.querySelector('.auth-card form');
-  if (!form) return;
-  const isSignup = location.pathname.endsWith('signup.html');
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const fields = new FormData(form);
-    const payload = { action: isSignup ? 'signup' : 'login', email: fields.get('email') || form.querySelector('input[type="email"]')?.value, password: fields.get('password') || form.querySelector('input[type="password"]')?.value };
-    if (isSignup) payload.name = fields.get('name') || form.querySelector('input[type="text"]')?.value;
-    const button = form.querySelector('button[type="submit"], button:not([type])');
-    if (button) button.disabled = true;
-    showMessage(form, '처리 중입니다...');
-    try {
-      const result = await callAuthApi(payload);
-      if (!result.ok) { showMessage(form, result.message || '요청을 처리하지 못했습니다.', true); return; }
-      localStorage.setItem('blog_auth_token', result.token);
-      localStorage.setItem('blog_user', JSON.stringify(result.user));
-      showMessage(form, result.message);
-      setTimeout(() => { location.href = 'profile.html'; }, 500);
-    } catch (error) { showMessage(form, '서버에 연결할 수 없습니다. 잠시 후 다시 시도하세요.', true); }
-    finally { if (button) button.disabled = false; }
-  });
+  const form = document.querySelector('.auth-card form'); if (!form) return; const isSignup = location.pathname.endsWith('signup.html');
+  form.addEventListener('submit', async e => { e.preventDefault(); const fields = new FormData(form); const payload = { action: isSignup ? 'signup' : 'login', email: fields.get('email'), password: fields.get('password') }; if (isSignup) payload.name = fields.get('name'); const button = form.querySelector('button[type="submit"]'); if (button) button.disabled = true; showMessage(form, '처리 중입니다...'); try { const result = await callAuthApi(payload); if (!result.ok) return showMessage(form, result.message || '요청을 처리하지 못했습니다.', true); localStorage.setItem(TOKEN_KEY, result.token); localStorage.setItem('blog_user', JSON.stringify(result.user)); showMessage(form, result.message || '완료되었습니다.'); setTimeout(() => { location.href = 'profile.html'; }, 400); } catch { showMessage(form, '서버에 연결할 수 없습니다. 잠시 후 다시 시도하세요.', true); } finally { if (button) button.disabled = false; } });
 }
-
-function setupLogout() {
-  if (!location.pathname.endsWith('profile.html')) return;
-
-  const profileCard = document.querySelector('.profile-card');
-  if (!profileCard || !localStorage.getItem('blog_auth_token')) return;
-
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'button full';
-  button.textContent = '로그아웃';
-  button.style.marginTop = '12px';
-
-  button.addEventListener('click', async () => {
-    button.disabled = true;
-
-    try {
-      await callAuthApi({
-        action: 'logout',
-        token: localStorage.getItem('blog_auth_token'),
-      });
-    } finally {
-      clearAuth();
-      location.href = 'login.html';
-    }
-  });
-
-  profileCard.appendChild(button);
+function postLink(post) { return `post-detail.html?id=${encodeURIComponent(post.id)}`; }
+function renderPostCard(post) { const article = document.createElement('article'); article.className = 'post-card'; article.innerHTML = `<p class="post-meta"></p><h3><a></a></h3><p class="post-excerpt"></p><a class="text-link">자세히 읽기 →</a>`; article.querySelector('.post-meta').textContent = `${post.category} · ${formatDate(post.date)}`; article.querySelector('h3 a').textContent = post.title; article.querySelector('h3 a').href = postLink(post); article.querySelector('.post-excerpt').textContent = post.content; article.querySelector('.text-link').href = postLink(post); return article; }
+function renderListItem(post, editable = false) { const item = document.createElement('article'); item.className = 'list-post user-post'; item.innerHTML = `<div class="list-date"></div><div><h2><a></a></h2><p></p><a class="text-link" href="${postLink(post)}">자세히 읽기 →</a><div class="post-actions"></div></div>`; item.querySelector('.list-date').textContent = `${formatDate(post.date)}\n${post.category}`; item.querySelector('.list-date').style.whiteSpace = 'pre-line'; item.querySelector('h2 a').textContent = post.title; item.querySelector('p').textContent = post.content; if (editable) { const actions = item.querySelector('.post-actions'); const edit = document.createElement('a'); edit.className = 'text-link'; edit.href = `write.html?edit=${encodeURIComponent(post.id)}`; edit.textContent = '수정'; const del = document.createElement('button'); del.type = 'button'; del.className = 'post-delete'; del.textContent = '삭제'; del.onclick = () => { if (!confirm('이 글을 삭제할까요?')) return; savePosts(readPosts().filter(p => p.id !== post.id)); item.remove(); }; actions.append(edit, del); } return item; }
+function setupHomePosts() { const grid = document.querySelector('#latest-posts'); if (!grid) return; const posts = readPosts(); if (posts.length) { grid.replaceChildren(); posts.slice(0, 3).forEach(post => grid.appendChild(renderPostCard(post))); } }
+function setupPostList() { const list = document.querySelector('#post-list'); if (!list) return; list.querySelectorAll('.user-post').forEach(el => el.remove()); readPosts().forEach(post => list.appendChild(renderListItem(post))); }
+function setupProfilePosts() { const section = document.querySelector('.profile-posts'); const list = section?.querySelector('.post-list'); if (!list) return; list.querySelectorAll('.user-post').forEach(el => el.remove()); const posts = readPosts(); posts.forEach(post => list.appendChild(renderListItem(post, true))); const count = document.querySelector('.stats b'); if (count) count.textContent = posts.length; }
+function setupWriteForm() { const form = document.querySelector('.editor-wrap form'); if (!form) return; const category = form.querySelector('[name="category"]'); const title = form.querySelector('[name="title"]'); const content = form.querySelector('[name="content"]'); const editId = new URLSearchParams(location.search).get('edit'); const existing = editId && readPosts().find(p => p.id === editId); if (existing) { title.value = existing.title; content.value = existing.content; category.value = existing.category; const heading = document.querySelector('.form-card h1'); if (heading) heading.textContent = '글 수정'; }
+  form.addEventListener('submit', e => { e.preventDefault(); const titleValue = title.value.trim(); const contentValue = content.value.trim(); if (!titleValue || !contentValue) return showMessage(form, '제목과 내용을 입력해 주세요.', true); const posts = readPosts(); if (existing) { const index = posts.findIndex(p => p.id === editId); posts[index] = { ...posts[index], title: titleValue, content: contentValue, category: category.value, updatedAt: new Date().toISOString() }; } else posts.unshift({ id: newId(), title: titleValue, content: contentValue, category: category.value, date: new Date().toISOString() }); savePosts(posts); showMessage(form, existing ? '게시글을 수정했습니다.' : '게시글을 발행했습니다.'); setTimeout(() => { location.href = 'profile.html'; }, 400); });
+  const previewButton = form.querySelector('.secondary-btn'); const preview = document.querySelector('.post-preview'); if (previewButton && preview) previewButton.addEventListener('click', () => { if (!title.value.trim() || !content.value.trim()) return showMessage(form, '제목과 내용을 입력한 뒤 미리보기를 눌러 주세요.', true); preview.querySelector('.post-preview-meta').textContent = `${category.value} · 미리보기`; preview.querySelector('.post-preview-title').textContent = title.value.trim(); preview.querySelector('.post-preview-content').textContent = content.value.trim(); preview.hidden = false; preview.scrollIntoView({ behavior: 'smooth' }); });
 }
-
-function setupWriteForm() {
-  const form = document.querySelector('.editor-wrap form');
-  const preview = document.querySelector('.post-preview');
-  const previewButton = form?.querySelector('.secondary-btn');
-  if (!form || !preview || !previewButton) return;
-
-  const category = form.querySelector('[name="category"]');
-  const title = form.querySelector('[name="title"]');
-  const content = form.querySelector('[name="content"]');
-  const previewMeta = preview.querySelector('.post-preview-meta');
-  const previewTitle = preview.querySelector('.post-preview-title');
-  const previewContent = preview.querySelector('.post-preview-content');
-
-  form.addEventListener('submit', (event) => {
-    event.preventDefault();
-    const titleValue = title.value.trim();
-    const contentValue = content.value.trim();
-    if (!titleValue || !contentValue) {
-      showMessage(form, '제목과 내용을 입력해 주세요.', true);
-      return;
-    }
-
-    const posts = JSON.parse(localStorage.getItem('blog_posts') || '[]');
-    posts.unshift({
-      id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
-      title: titleValue,
-      content: contentValue,
-      category: category.value,
-      date: new Date().toISOString(),
-    });
-    localStorage.setItem('blog_posts', JSON.stringify(posts));
-    showMessage(form, '게시글이 발행되어 목록에 추가되었습니다.');
-    setTimeout(() => { location.href = 'posts.html'; }, 600);
-  });
-
-  previewButton.addEventListener('click', () => {
-    const titleValue = title.value.trim();
-    const contentValue = content.value.trim();
-    if (!titleValue || !contentValue) {
-      showMessage(form, '제목과 내용을 입력한 뒤 미리보기를 눌러 주세요.', true);
-      return;
-    }
-
-    previewMeta.textContent = `${category.value.toUpperCase()} · 미리보기`;
-    previewTitle.textContent = titleValue;
-    previewContent.textContent = contentValue;
-    preview.hidden = false;
-    preview.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
-}
-
-function setupPostList() {
-  const list = document.querySelector('#post-list');
-  if (!list) return;
-  const posts = JSON.parse(localStorage.getItem('blog_posts') || '[]');
-  posts.forEach((post) => {
-    if (!post.id) post.id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-    const item = document.createElement('article');
-    item.className = 'list-post user-post';
-    const date = new Date(post.date).toLocaleDateString('ko-KR').replaceAll('. ', '.').replace(/\.$/, '');
-    const dateColumn = document.createElement('div');
-    dateColumn.className = 'list-date';
-    dateColumn.textContent = `${date}\n${post.category.toUpperCase()}`;
-    dateColumn.style.whiteSpace = 'pre-line';
-    const body = document.createElement('div');
-    const heading = document.createElement('h2');
-    heading.textContent = post.title;
-    const excerpt = document.createElement('p');
-    excerpt.textContent = post.content;
-    const label = document.createElement('span');
-    label.className = 'text-link';
-    label.textContent = '내가 작성한 글';
-    const deleteButton = document.createElement('button');
-    deleteButton.type = 'button';
-    deleteButton.className = 'post-delete';
-    deleteButton.textContent = '삭제';
-    deleteButton.addEventListener('click', () => {
-      const currentPosts = JSON.parse(localStorage.getItem('blog_posts') || '[]');
-      const postIndex = currentPosts.findIndex((currentPost) => currentPost.id === post.id);
-      if (postIndex >= 0) currentPosts.splice(postIndex, 1);
-      localStorage.setItem('blog_posts', JSON.stringify(currentPosts));
-      item.remove();
-    });
-    body.append(heading, excerpt, label, deleteButton);
-    item.append(dateColumn, body);
-    list.prepend(item);
-  });
-  localStorage.setItem('blog_posts', JSON.stringify(posts));
-}
-
-document.querySelectorAll('form:not(.auth-card form):not(.editor-wrap form)').forEach((form) => form.addEventListener('submit', (event) => { event.preventDefault(); const message = form.querySelector('.form-message'); if (message) message.textContent = form.dataset.message || '처리되었습니다.'; }));
-setupAuthForm();
-setupAuthNavigation();
-setupLogout();
-setupWriteForm();
-setupPostList();
+function setupDetail() { const article = document.querySelector('.article'); if (!article) return; const id = new URLSearchParams(location.search).get('id'); const post = id && readPosts().find(p => p.id === id); if (!post) return; article.querySelector('.eyebrow').textContent = `${post.category} · ${formatDate(post.date)}`; article.querySelector('h1').textContent = post.title; article.querySelector('.article-meta').textContent = `김윤자 · ${formatDate(post.date)}`; article.querySelector('.article-body').textContent = post.content; }
+document.querySelectorAll('form:not(.auth-card form):not(.editor-wrap form)').forEach(form => form.addEventListener('submit', e => { e.preventDefault(); const message = form.querySelector('.form-message'); if (message) message.textContent = form.dataset.message || '처리되었습니다.'; }));
+setupAuthNavigation(); setupAuthForm(); setupHomePosts(); setupPostList(); setupProfilePosts(); setupWriteForm(); setupDetail();
