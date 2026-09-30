@@ -31,6 +31,18 @@
       </div>
     </section>
 
+    <div class="container archive-tools">
+      <input id="post-search" type="search" placeholder="게시글 검색" aria-label="게시글 검색">
+      <select id="category-filter" aria-label="카테고리 필터">
+        <option value="">전체 카테고리</option>
+        <option value="Design">Design</option>
+        <option value="Work">Work</option>
+        <option value="Life">Life</option>
+        <option value="Note">Note</option>
+      </select>
+      <input id="post-page" type="hidden" value="1">
+    </div>
+
     <div class="container content-layout">
       <section class="post-list" id="post-list" aria-label="게시글 목록">
         <article class="list-post">
@@ -69,13 +81,12 @@
           </div>
         </article>
       </section>
-
       <aside class="sidebar">
         <h3>카테고리</h3>
-        <a href="#">Design (12)</a>
-        <a href="#">Work (8)</a>
-        <a href="#">Life (15)</a>
-        <a href="#">Note (6)</a>
+        <a href="posts.html?category=Design">Design</a>
+        <a href="posts.html?category=Work">Work</a>
+        <a href="posts.html?category=Life">Life</a>
+        <a href="posts.html?category=Note">Note</a>
 
         <h3 style="margin-top:28px">태그</h3>
         <span class="tag">UX</span>
@@ -84,6 +95,7 @@
         <span class="tag">웹</span>
       </aside>
     </div>
+    <div class="container"><div id="pagination" class="pagination" aria-label="게시글 페이지"></div></div>
   </main>
 
   <footer class="site-footer">
@@ -93,4 +105,3 @@
   <script src="js/main.js"></script>
 </body>
 </html>
-

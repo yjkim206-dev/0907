@@ -2,6 +2,8 @@ const USERS_SHEET = 'Users';
 const SESSIONS_SHEET = 'Sessions';
 const SESSION_DAYS = 7;
 const POSTS_SHEET = 'Posts';
+const SUBSCRIBERS_SHEET = 'Subscribers';
+const COMMENTS_SHEET = 'Comments';
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // 최초 1회 실행: 회원·세션 시트와 비밀번호 해싱용 비밀값을 생성합니다.
@@ -10,6 +12,8 @@ function setup() {
   createSheet_(ss, USERS_SHEET, ['id', 'name', 'email', 'passwordHash', 'salt', 'createdAt']);
   createSheet_(ss, SESSIONS_SHEET, ['token', 'userId', 'expiresAt', 'createdAt']);
   createSheet_(ss, POSTS_SHEET, ['id', 'userId', 'title', 'content', 'category', 'createdAt', 'updatedAt']);
+  createSheet_(ss, SUBSCRIBERS_SHEET, ['email', 'createdAt']);
+  createSheet_(ss, COMMENTS_SHEET, ['id', 'postId', 'userId', 'content', 'createdAt']);
 
   const properties = PropertiesService.getScriptProperties();
   if (!properties.getProperty('PASSWORD_PEPPER')) {
@@ -35,6 +39,10 @@ function doPost(e) {
     if (data.action === 'post_get') return getPost_(data.id);
     if (data.action === 'post_update') return updatePost_(data);
     if (data.action === 'post_delete') return deletePost_(data);
+    if (data.action === 'subscribe') return subscribe_(data);
+    if (data.action === 'comment_list') return listComments_(data.postId);
+    if (data.action === 'comment_create') return createComment_(data);
+    if (data.action === 'comment_delete') return deleteComment_(data);
     return json_({ ok: false, message: '잘못된 요청입니다.' });
   } catch (error) {
     return json_({ ok: false, message: error.message });
@@ -104,6 +112,15 @@ function logout_(token) {
   return json_({ ok: true, message: '로그아웃되었습니다.' });
 }
 
+function subscribe_(data) {
+  const email = String(data.email || '').trim().toLowerCase();
+  if (!EMAIL_PATTERN.test(email)) return json_({ ok: false, message: '올바른 이메일 주소를 입력하세요.' });
+  const sheet = sheet_(SUBSCRIBERS_SHEET);
+  const exists = sheet.getDataRange().getValues().slice(1).some(row => String(row[0]).toLowerCase() === email);
+  if (!exists) sheet.appendRow([email, new Date().toISOString()]);
+  return json_({ ok: true, message: '구독 신청이 완료되었습니다.' });
+}
+
 function createPost_(data) {
   const session = validSession_(data.token);
   if (!session) return json_({ ok: false, message: '로그인이 필요합니다.' });
@@ -157,6 +174,42 @@ function deletePost_(data) {
   return json_({ ok: true, message: '게시글이 삭제되었습니다.' });
 }
 
+function listComments_(postId) {
+  if (!postId) return json_({ ok: true, comments: [] });
+  const rows = sheet_(COMMENTS_SHEET).getDataRange().getValues();
+  const users = sheet_(USERS_SHEET).getDataRange().getValues().slice(1);
+  const comments = rows.slice(1).filter(row => String(row[1]) === String(postId)).map(row => {
+    const user = users.find(item => String(item[0]) === String(row[2]));
+    return { id: row[0], postId: row[1], userId: row[2], name: user ? user[1] : '회원', content: row[3], createdAt: row[4] };
+  });
+  return json_({ ok: true, comments });
+}
+
+function createComment_(data) {
+  const session = validSession_(data.token);
+  if (!session) return json_({ ok: false, message: '로그인이 필요합니다.' });
+  const postId = String(data.postId || '').trim();
+  const content = String(data.content || '').trim();
+  if (!postId || !content) return json_({ ok: false, message: '댓글 내용을 입력하세요.' });
+  if (content.length > 500) return json_({ ok: false, message: '댓글은 500자 이하로 입력하세요.' });
+  const postRows = sheet_(POSTS_SHEET).getDataRange().getValues();
+  if (!postRows.slice(1).some(row => String(row[0]) === postId)) return json_({ ok: false, message: '게시글을 찾을 수 없습니다.' });
+  const comment = { id: Utilities.getUuid(), postId, userId: session.userId, content, createdAt: new Date().toISOString() };
+  sheet_(COMMENTS_SHEET).appendRow([comment.id, comment.postId, comment.userId, comment.content, comment.createdAt]);
+  return json_({ ok: true, comment });
+}
+
+function deleteComment_(data) {
+  const session = validSession_(data.token);
+  if (!session) return json_({ ok: false, message: '로그인이 필요합니다.' });
+  const sheet = sheet_(COMMENTS_SHEET); const rows = sheet.getDataRange().getValues();
+  const index = rows.findIndex(row => String(row[0]) === String(data.id));
+  if (index < 1) return json_({ ok: false, message: '댓글을 찾을 수 없습니다.' });
+  if (String(rows[index][2]) !== String(session.userId)) return json_({ ok: false, message: '삭제 권한이 없습니다.' });
+  sheet.deleteRow(index + 1);
+  return json_({ ok: true, message: '댓글을 삭제했습니다.' });
+}
+
 function createSession_(userId) {
   const token = Utilities.getUuid() + Utilities.getUuid();
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000);
@@ -189,6 +242,8 @@ function ensureSetup_() {
   createSheet_(ss, USERS_SHEET, ['id', 'name', 'email', 'passwordHash', 'salt', 'createdAt']);
   createSheet_(ss, SESSIONS_SHEET, ['token', 'userId', 'expiresAt', 'createdAt']);
   createSheet_(ss, POSTS_SHEET, ['id', 'userId', 'title', 'content', 'category', 'createdAt', 'updatedAt']);
+  createSheet_(ss, SUBSCRIBERS_SHEET, ['email', 'createdAt']);
+  createSheet_(ss, COMMENTS_SHEET, ['id', 'postId', 'userId', 'content', 'createdAt']);
 
   const properties = PropertiesService.getScriptProperties();
   if (!properties.getProperty('PASSWORD_PEPPER')) {
