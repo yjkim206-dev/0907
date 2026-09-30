@@ -1,4 +1,4 @@
-const API_URL = 'https://script.google.com/macros/s/AKfycbw44Uc4HKgFtpZbYWArVTzU8IrhvssUYWFmop1KW0LpBVmb-3RioENy77-n4HeXrPin/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzPb1xRGeOCZ6FOmyx7zN-cQ9zWFN1HaEGPJXrzGmlTnVRX1u3G11wKjbwVlKtz_Ppe/exec';
 const POSTS_KEY = 'blog_posts';
 const TOKEN_KEY = 'blog_auth_token';
 let currentUser = null;
