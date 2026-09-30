@@ -2,6 +2,7 @@ const USERS_SHEET = 'Users';
 const SESSIONS_SHEET = 'Sessions';
 const SESSION_DAYS = 7;
 const POSTS_SHEET = 'Posts';
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // 최초 1회 실행: 회원·세션 시트와 비밀번호 해싱용 비밀값을 생성합니다.
 function setup() {
@@ -46,24 +47,33 @@ function signup_(data) {
   const password = String(data.password || '');
 
   if (!name || !email || !password) return json_({ ok: false, message: '모든 항목을 입력하세요.' });
+  if (name.length > 40) return json_({ ok: false, message: '이름은 40자 이하로 입력하세요.' });
+  if (!EMAIL_PATTERN.test(email)) return json_({ ok: false, message: '올바른 이메일 주소를 입력하세요.' });
   if (password.length < 8) return json_({ ok: false, message: '비밀번호는 8자 이상이어야 합니다.' });
 
-  const users = sheet_(USERS_SHEET);
-  const rows = users.getDataRange().getValues();
-  if (rows.slice(1).some(row => String(row[2]).toLowerCase() === email)) {
-    return json_({ ok: false, message: '이미 가입된 이메일입니다.' });
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const users = sheet_(USERS_SHEET);
+    const rows = users.getDataRange().getValues();
+    if (rows.slice(1).some(row => String(row[2]).toLowerCase() === email)) {
+      return json_({ ok: false, message: '이미 가입된 이메일입니다.' });
+    }
+
+    const id = Utilities.getUuid();
+    const salt = Utilities.getUuid();
+    users.appendRow([id, name, email, hash_(password, salt), salt, new Date().toISOString()]);
+
+    return json_({ ok: true, message: '회원가입이 완료되었습니다.', token: createSession_(id), user: { id, name, email } });
+  } finally {
+    lock.releaseLock();
   }
-
-  const id = Utilities.getUuid();
-  const salt = Utilities.getUuid();
-  users.appendRow([id, name, email, hash_(password, salt), salt, new Date().toISOString()]);
-
-  return json_({ ok: true, message: '회원가입이 완료되었습니다.', token: createSession_(id), user: { id, name, email } });
 }
 
 function login_(data) {
   const email = String(data.email || '').trim().toLowerCase();
   const password = String(data.password || '');
+  if (!EMAIL_PATTERN.test(email) || !password) return json_({ ok: false, message: '이메일과 비밀번호를 입력하세요.' });
   const rows = sheet_(USERS_SHEET).getDataRange().getValues();
   const user = rows.slice(1).find(row => String(row[2]).toLowerCase() === email);
 
