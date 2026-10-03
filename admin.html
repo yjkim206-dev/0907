@@ -1,1 +1,36 @@
-<!doctype html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>관리자 대시보드 | 모퉁이 기록</title><link rel="stylesheet" href="css/style.css"></head><body><header class="site-header"><div class="container header-inner"><a class="brand" href="index.html">모퉁이 <span>기록</span></a><button class="menu-toggle" type="button">☰</button><nav class="site-nav"><a href="index.html">홈</a><a href="posts.html">글 목록</a><a href="login.html">로그인</a><a href="write.html">글쓰기</a></nav></div></header><main class="container admin-page"><section class="admin-heading"><p class="eyebrow">ADMIN DASHBOARD</p><h1>블로그 관리</h1><p>회원, 게시글, 댓글, 반응 통계를 관리합니다.</p><a class="button admin-home-link" href="index.html">홈페이지로 가기</a></section><p class="form-message admin-message"></p><div class="admin-content" hidden><section class="admin-stats"><article><strong id="admin-user-count">0</strong><span>회원</span></article><article><strong id="admin-post-count">0</strong><span>게시글</span></article><article><strong id="admin-comment-count">0</strong><span>댓글</span></article></section><section class="admin-section"><div class="section-head"><h2 class="section-title">회원 관리</h2></div><div class="admin-table-wrap"><table><thead><tr><th>이름</th><th>이메일</th><th>가입일</th></tr></thead><tbody id="admin-users"></tbody></table></div></section><section class="admin-section"><div class="section-head"><h2 class="section-title">게시글 통계 및 공개 상태</h2></div><div class="admin-table-wrap"><table><thead><tr><th>제목</th><th>작성자</th><th>조회수</th><th>좋아요</th><th>싫어요</th><th>공개 상태</th><th>관리</th></tr></thead><tbody id="admin-posts"></tbody></table></div></section><section class="admin-section"><div class="section-head"><h2 class="section-title">댓글 관리</h2></div><div class="admin-table-wrap"><table><thead><tr><th>내용</th><th>작성자</th><th>게시글</th><th>공개 상태</th><th>관리</th></tr></thead><tbody id="admin-comments"></tbody></table></div></section></div></main><footer class="site-footer"><div class="container">© 2026 모퉁이 기록</div></footer><script src="js/main.js"></script></body></html>
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>관리자 대시보드 | 모퉁이 기록</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="admin-body">
+  <header class="site-header"><div class="container header-inner"><a class="brand" href="index.html">모퉁이 <span>기록</span></a><button class="menu-toggle" type="button" aria-label="메뉴 열기" aria-expanded="false">☰</button><nav class="site-nav"><a href="index.html">홈</a><a href="posts.html">글 목록</a><a href="login.html">로그인</a><a href="write.html">글쓰기</a></nav></div></header>
+  <main class="container admin-page">
+    <section class="admin-heading"><div><p class="eyebrow">ADMIN WORKSPACE</p><h1>블로그 관리</h1><p>콘텐츠와 커뮤니티 현황을 한 곳에서 확인하세요.</p></div><a class="admin-home-link" href="index.html">사이트 보기 ↗</a></section>
+    <p class="form-message admin-message"></p>
+    <div class="admin-content" hidden>
+      <aside class="admin-sidebar" aria-label="관리 메뉴">
+        <div class="admin-sidebar-title"><span class="admin-avatar">A</span><div><strong>관리자</strong><small>콘텐츠 센터</small></div></div>
+        <nav class="admin-nav" aria-label="대시보드 카테고리">
+          <button class="is-active" type="button" data-admin-nav="overview"><span>⌘</span>개요</button>
+          <button type="button" data-admin-nav="users"><span>◉</span>회원 관리 <b id="admin-user-nav-count">0</b></button>
+          <button type="button" data-admin-nav="posts"><span>▤</span>게시글 관리 <b id="admin-post-nav-count">0</b></button>
+          <button type="button" data-admin-nav="comments"><span>◌</span>댓글 관리 <b id="admin-comment-nav-count">0</b></button>
+        </nav>
+        <p class="admin-sidebar-note">변경한 공개 상태는 즉시 사이트에 적용됩니다.</p>
+      </aside>
+      <div class="admin-main">
+        <section class="admin-panel" data-admin-panel="overview"><div class="admin-panel-heading"><div><p class="eyebrow">OVERVIEW</p><h2>사이트 현황</h2></div><span class="admin-live-dot">실시간</span></div><section class="admin-stats"><article><span>전체 회원</span><strong id="admin-user-count">0</strong><small>등록된 계정</small></article><article><span>게시글</span><strong id="admin-post-count">0</strong><small>작성된 콘텐츠</small></article><article><span>댓글</span><strong id="admin-comment-count">0</strong><small>커뮤니티 반응</small></article></section><section class="admin-welcome-card"><div><p class="eyebrow">QUICK GUIDE</p><h3>왼쪽 메뉴에서 관리할 항목을 선택하세요.</h3><p>회원 정보, 게시글 공개 상태, 댓글을 각각 빠르게 확인하고 관리할 수 있습니다.</p></div><span aria-hidden="true">✦</span></section></section>
+        <section class="admin-panel admin-section" data-admin-panel="users" hidden><div class="admin-panel-heading"><div><p class="eyebrow">MEMBERS</p><h2>회원 관리</h2></div><span class="admin-count-badge" id="admin-user-panel-count">0명</span></div><div class="admin-table-wrap"><table><thead><tr><th>이름</th><th>이메일</th><th>가입일</th></tr></thead><tbody id="admin-users"></tbody></table></div></section>
+        <section class="admin-panel admin-section" data-admin-panel="posts" hidden><div class="admin-panel-heading"><div><p class="eyebrow">CONTENT</p><h2>게시글 관리</h2></div><span class="admin-count-badge" id="admin-post-panel-count">0개</span></div><div class="admin-table-wrap"><table><thead><tr><th>제목</th><th>작성자</th><th>조회</th><th>좋아요</th><th>싫어요</th><th>공개 상태</th><th>관리</th></tr></thead><tbody id="admin-posts"></tbody></table></div></section>
+        <section class="admin-panel admin-section" data-admin-panel="comments" hidden><div class="admin-panel-heading"><div><p class="eyebrow">COMMUNITY</p><h2>댓글 관리</h2></div><span class="admin-count-badge" id="admin-comment-panel-count">0개</span></div><div class="admin-table-wrap"><table><thead><tr><th>내용</th><th>작성자</th><th>게시글</th><th>공개 상태</th><th>관리</th></tr></thead><tbody id="admin-comments"></tbody></table></div></section>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="container">© 2026 모퉁이 기록</div></footer>
+  <script src="js/main.js"></script>
+</body>
+</html>
