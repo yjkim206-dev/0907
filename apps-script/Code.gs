@@ -310,7 +310,7 @@ function adminDashboard_(token) {
   return json_({ ok: true,
     stats: { users: users.length, posts: posts.length, comments: comments.length },
     users: users.map(row => ({ id: row[0], name: row[1], email: row[2], createdAt: row[5] })),
-    posts: posts.map(row => ({ id: row[0], title: row[2], category: row[4], createdAt: row[5], visibility: row[7] || 'public', authorName: userNames.get(String(row[1])) || '' })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
+    posts: posts.map(row => ({ id: row[0], title: row[2], category: row[4], createdAt: row[5], visibility: row[7] || 'public', viewCount: Number(row[8] || 0), likeCount: Number(row[9] || 0), dislikeCount: Number(row[10] || 0), authorName: userNames.get(String(row[1])) || '' })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)),
     comments: comments.map(row => ({ id: row[0], postId: row[1], content: row[3], createdAt: row[4], authorName: userNames.get(String(row[2])) || '', postTitle: postTitles.get(String(row[1])) || '삭제된 게시글' })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
   });
 }
