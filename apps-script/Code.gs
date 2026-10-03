@@ -5,6 +5,7 @@ const POSTS_SHEET = 'Posts';
 const SUBSCRIBERS_SHEET = 'Subscribers';
 const COMMENTS_SHEET = 'Comments';
 const REACTIONS_SHEET = 'PostReactions';
+const VIEWS_SHEET = 'PostViews';
 const ADMIN_EMAIL_PROPERTY = 'ADMIN_EMAIL';
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -18,6 +19,7 @@ function setup() {
   createSheet_(ss, SUBSCRIBERS_SHEET, ['email', 'createdAt']);
   createSheet_(ss, COMMENTS_SHEET, ['id', 'postId', 'userId', 'content', 'createdAt', 'visibility']);
   createSheet_(ss, REACTIONS_SHEET, ['id', 'postId', 'userId', 'value', 'createdAt']);
+  createSheet_(ss, VIEWS_SHEET, ['id', 'postId', 'visitorId', 'viewedAt']);
 
   const properties = PropertiesService.getScriptProperties();
   if (!properties.getProperty('PASSWORD_PEPPER')) {
@@ -41,7 +43,7 @@ function doPost(e) {
     if (data.action === 'post_create') return createPost_(data);
     if (data.action === 'post_list') return listPosts_(data.token);
     if (data.action === 'post_get') return getPost_(data.id, data.token);
-    if (data.action === 'post_view') return viewPost_(data.id);
+    if (data.action === 'post_view') return viewPost_(data.id, data.visitorId);
     if (data.action === 'post_reaction') return reactPost_(data);
     if (data.action === 'post_update') return updatePost_(data);
     if (data.action === 'post_delete') return deletePost_(data);
@@ -178,13 +180,21 @@ function postFromRow_(row) {
   return { id: row[0], userId: row[1], title: row[2], content: row[3], category: row[4], createdAt: row[5], updatedAt: row[6], visibility: row[7] || 'public', viewCount: Number(row[8] || 0), likeCount: Number(row[9] || 0), dislikeCount: Number(row[10] || 0) };
 }
 
-function viewPost_(id) {
-  const sheet = sheet_(POSTS_SHEET); const rows = sheet.getDataRange().getValues();
+function viewPost_(id, visitorId) {
+  visitorId = String(visitorId || '').trim();
+  if (!visitorId) return json_({ ok: false, message: 'Visitor id is required.' });
+  const views = sheet_(VIEWS_SHEET);
+  const viewRows = views.getDataRange().getValues();
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  const recent = viewRows.slice(1).find(row => String(row[1]) === String(id) && String(row[2]) === visitorId && new Date(row[3]).getTime() > cutoff);
+  const posts = sheet_(POSTS_SHEET); const rows = posts.getDataRange().getValues();
   const index = rows.findIndex(row => String(row[0]) === String(id));
   if (index < 1) return json_({ ok: false, message: 'Post not found.' });
+  if (recent) return json_({ ok: true, counted: false, viewCount: Number(rows[index][8] || 0) });
+  views.appendRow([Utilities.getUuid(), id, visitorId, new Date().toISOString()]);
   const count = Number(rows[index][8] || 0) + 1;
-  sheet.getRange(index + 1, 9).setValue(count);
-  return json_({ ok: true, viewCount: count });
+  posts.getRange(index + 1, 9).setValue(count);
+  return json_({ ok: true, counted: true, viewCount: count });
 }
 
 function reactPost_(data) {
@@ -381,6 +391,7 @@ function ensureSetup_() {
   createSheet_(ss, SUBSCRIBERS_SHEET, ['email', 'createdAt']);
   createSheet_(ss, COMMENTS_SHEET, ['id', 'postId', 'userId', 'content', 'createdAt', 'visibility']);
   createSheet_(ss, REACTIONS_SHEET, ['id', 'postId', 'userId', 'value', 'createdAt']);
+  createSheet_(ss, VIEWS_SHEET, ['id', 'postId', 'visitorId', 'viewedAt']);
   ensurePostMetricsColumns_();
   ensureCommentVisibilityColumn_();
 
