@@ -1,79 +1,94 @@
-const API_URL = 'https://script.google.com/macros/s/AKfycbzPb1xRGeOCZ6FOmyx7zN-cQ9zWFN1HaEGPJXrzGmlTnVRX1u3G11wKjbwVlKtz_Ppe/exec';
-const POSTS_KEY = 'blog_posts';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzAovPsgZ6yED3x4OiHz0XNMyr8PbH3cZppAGbqqO_g2ffwgGkhPTb_HNAw0rj0uXvY/exec';
 const TOKEN_KEY = 'blog_auth_token';
 let currentUser = null;
-let allPosts = [];
+let isAdmin = false;
 
 const nav = document.querySelector('.site-nav');
 const menu = document.querySelector('.menu-toggle');
 if (menu && nav) menu.addEventListener('click', () => { const open = nav.classList.toggle('is-open'); menu.setAttribute('aria-expanded', String(open)); });
 
-function readPosts() { try { return JSON.parse(localStorage.getItem(POSTS_KEY) || '[]'); } catch { return []; } }
-function savePosts(posts) { localStorage.setItem(POSTS_KEY, JSON.stringify(posts)); }
-function showMessage(form, message, error = false) { const target = form?.querySelector('.form-message'); if (target) { target.textContent = message; target.style.color = error ? '#c0392b' : ''; } }
-function formatDate(value) { return new Date(value).toLocaleDateString('ko-KR').replaceAll('. ', '.').replace(/\.$/, ''); }
-function postLink(post) { return `post-detail.html?id=${encodeURIComponent(post.id)}`; }
-function clearAuth() { currentUser = null; localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('blog_user'); }
-async function callApi(payload) { const response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) }); if (!response.ok) throw new Error(`서버 오류(${response.status})`); return response.json(); }
-async function postApi(payload) { const result = await callApi(payload); if (!result.ok) throw new Error(result.message || '요청에 실패했습니다.'); return result; }
+function showMessage(form, message, error = false) { const el = form?.querySelector('.form-message'); if (el) { el.textContent = message; el.style.color = error ? '#c0392b' : ''; } }
+function clearAuth() { currentUser = null; isAdmin = false; localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('blog_user'); }
+async function api(payload) { const response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) }); if (!response.ok) throw new Error(`서버 오류 (${response.status})`); return response.json(); }
+async function requireApi(payload) { const result = await api(payload); if (!result.ok) throw new Error(result.message || '요청에 실패했습니다.'); return result; }
+function dateText(value) { return value ? new Date(value).toLocaleDateString('ko-KR') : '-'; }
 
 async function refreshAuth() {
   const token = localStorage.getItem(TOKEN_KEY); if (!token) return null;
-  try { const result = await callApi({ action: 'me', token }); if (!result.ok) { clearAuth(); return null; } currentUser = result.user; localStorage.setItem('blog_user', JSON.stringify(result.user)); return currentUser; }
-  catch { return JSON.parse(localStorage.getItem('blog_user') || 'null'); }
+  try { const result = await api({ action: 'me', token }); if (!result.ok) { clearAuth(); return null; } currentUser = result.user; return currentUser; }
+  catch { clearAuth(); return null; }
 }
 
-function setupAuthNavigation() {
+async function checkAdmin() {
+  if (!currentUser) return false;
+  try { await requireApi({ action: 'admin_dashboard', token: localStorage.getItem(TOKEN_KEY) }); isAdmin = true; return true; }
+  catch { isAdmin = false; return false; }
+}
+
+function setupNavigation() {
   if (!nav) return;
-  const login = nav.querySelector('a[href="login.html"]'); const write = nav.querySelector('a[href="write.html"]');
-  const oldSignup = nav.querySelector('[data-signup-link]'); if (oldSignup) oldSignup.remove();
-  nav.querySelectorAll('a[href="profile.html"]').forEach(link => link.remove());
-  if (currentUser) {
-    if (login) { login.textContent = '로그아웃'; login.href = '#logout'; login.onclick = async e => { e.preventDefault(); try { await callApi({ action: 'logout', token: localStorage.getItem(TOKEN_KEY) }); } finally { clearAuth(); location.href = 'index.html'; } }; }
-    const link = document.createElement('a'); link.href = 'profile.html'; link.dataset.profileLink = 'true'; link.textContent = '프로필'; if (location.pathname.endsWith('profile.html')) link.classList.add('active'); nav.insertBefore(link, login || write);
-  } else if (login) { const link = document.createElement('a'); link.href = 'signup.html'; link.dataset.signupLink = 'true'; link.textContent = '회원가입'; nav.insertBefore(link, write); }
-}
+  const header = document.querySelector('.header-inner');
+  document.querySelectorAll('[data-admin-link]').forEach(link => link.remove());
+  const adminLink = document.createElement('a');
+  adminLink.dataset.adminLink = 'true';
+  adminLink.className = 'admin-nav-link';
+  adminLink.textContent = isAdmin ? '관리자 로그아웃' : '관리자 로그인';
+  if (isAdmin) {
+    adminLink.href = '#admin-logout';
+    adminLink.addEventListener('click', async event => { event.preventDefault(); try { await api({ action: 'logout', token: localStorage.getItem(TOKEN_KEY) }); } finally { clearAuth(); location.href = 'index.html'; } });
+  } else { adminLink.href = 'admin-login.html'; }
+  header?.insertBefore(adminLink, nav);
 
-function requireAuth() { if (currentUser) return true; location.href = `login.html?next=${encodeURIComponent(location.pathname.split('/').pop() || 'index.html')}`; return false; }
+  const login = nav.querySelector('a[href="login.html"]');
+  if (currentUser && login) {
+    login.textContent = '로그아웃'; login.href = '#logout';
+    login.onclick = async event => { event.preventDefault(); try { await api({ action: 'logout', token: localStorage.getItem(TOKEN_KEY) }); } finally { clearAuth(); location.href = 'index.html'; } };
+  }
+}
 
 function setupAuthForm() {
-  const form = document.querySelector('.auth-card form[data-auth-mode]'); if (!form) return; const isSignup = form.dataset.authMode === 'signup';
-  form.addEventListener('submit', async e => {
-    e.preventDefault(); const fields = new FormData(form);
-    if (isSignup && fields.get('password') !== fields.get('passwordConfirm')) return showMessage(form, '비밀번호가 일치하지 않습니다.', true);
-    const payload = { action: isSignup ? 'signup' : 'login', email: fields.get('email'), password: fields.get('password') }; if (isSignup) payload.name = fields.get('name');
-    const button = form.querySelector('button[type="submit"]'); if (button) button.disabled = true; showMessage(form, '처리 중입니다...');
-    try { const result = await callApi(payload); if (!result.ok) return showMessage(form, result.message, true); localStorage.setItem(TOKEN_KEY, result.token); localStorage.setItem('blog_user', JSON.stringify(result.user)); currentUser = result.user; showMessage(form, result.message); const next = new URLSearchParams(location.search).get('next'); setTimeout(() => { location.href = next || 'profile.html'; }, 400); }
-    catch (error) { showMessage(form, error.message || '서버에 연결할 수 없습니다.', true); } finally { if (button) button.disabled = false; }
+  const form = document.querySelector('form[data-auth-mode]'); if (!form) return;
+  const signup = form.dataset.authMode === 'signup';
+  form.addEventListener('submit', async event => {
+    event.preventDefault(); const data = new FormData(form); const button = form.querySelector('button[type="submit"]');
+    if (signup && data.get('password') !== data.get('passwordConfirm')) return showMessage(form, '비밀번호가 일치하지 않습니다.', true);
+    button.disabled = true; showMessage(form, '처리 중입니다...');
+    try { const result = await requireApi({ action: signup ? 'signup' : 'login', name: data.get('name'), email: data.get('email'), password: data.get('password') }); localStorage.setItem(TOKEN_KEY, result.token); localStorage.setItem('blog_user', JSON.stringify(result.user)); currentUser = result.user; showMessage(form, result.message); const next = new URLSearchParams(location.search).get('next'); setTimeout(() => { location.href = next || 'profile.html'; }, 350); }
+    catch (error) { showMessage(form, error.message, true); } finally { button.disabled = false; }
   });
 }
 
-async function syncPosts() {
-  try { const result = await postApi({ action: 'post_list' }); const remote = result.posts.map(post => ({ ...post, date: post.createdAt })); const local = readPosts().filter(post => !post.userId); allPosts = [...remote, ...local.filter(post => !remote.some(item => item.id === post.id))].sort((a, b) => new Date(b.date) - new Date(a.date)); savePosts(allPosts); return allPosts; }
-  catch { allPosts = readPosts(); return allPosts; }
+function setupAdminLogin() {
+  const form = document.querySelector('form[data-admin-auth]'); if (!form) return;
+  form.addEventListener('submit', async event => {
+    event.preventDefault(); const data = new FormData(form); const button = form.querySelector('button[type="submit"]'); button.disabled = true; showMessage(form, '관리자 권한을 확인하고 있습니다...');
+    try { const result = await requireApi({ action: 'login', email: data.get('email'), password: data.get('password') }); const admin = await api({ action: 'admin_dashboard', token: result.token }); if (!admin.ok) throw new Error('관리자 계정만 접속할 수 있습니다.'); localStorage.setItem(TOKEN_KEY, result.token); localStorage.setItem('blog_user', JSON.stringify(result.user)); currentUser = result.user; isAdmin = true; location.href = 'admin.html'; }
+    catch (error) { showMessage(form, error.message, true); } finally { button.disabled = false; }
+  });
 }
 
-function renderPostCard(post) { const article = document.createElement('article'); article.className = 'post-card'; article.innerHTML = '<p class="post-meta"></p><h3><a></a></h3><p class="post-excerpt"></p><a class="text-link">자세히 읽기 →</a>'; article.querySelector('.post-meta').textContent = `${post.category} · ${formatDate(post.date)}`; article.querySelector('h3 a').textContent = post.title; article.querySelector('h3 a').href = postLink(post); article.querySelector('.post-excerpt').textContent = post.content; article.querySelector('.text-link').href = postLink(post); return article; }
-function renderListItem(post, editable = false) { const item = document.createElement('article'); item.className = 'list-post user-post'; item.innerHTML = '<div class="list-date"></div><div><h2><a></a></h2><p></p><a class="text-link">자세히 읽기 →</a><div class="post-actions"></div></div>'; item.querySelector('.list-date').textContent = `${formatDate(post.date)}\n${post.category}`; item.querySelector('.list-date').style.whiteSpace = 'pre-line'; item.querySelector('h2 a').textContent = post.title; item.querySelector('h2 a').href = postLink(post); item.querySelector('p').textContent = post.content; item.querySelector('.text-link').href = postLink(post);
-  if (editable) { const actions = item.querySelector('.post-actions'); const edit = document.createElement('a'); edit.className = 'text-link'; edit.href = `write.html?edit=${encodeURIComponent(post.id)}`; edit.textContent = '수정'; const del = document.createElement('button'); del.type = 'button'; del.className = 'post-delete'; del.textContent = '삭제'; del.onclick = async () => { if (!confirm('이 글을 삭제할까요?')) return; try { await postApi({ action: 'post_delete', token: localStorage.getItem(TOKEN_KEY), id: post.id }); item.remove(); } catch (error) { alert(error.message); } }; actions.append(edit, del); }
-  return item;
+async function setupAdminPage() {
+  const page = document.querySelector('.admin-page'); if (!page) return;
+  if (!isAdmin) { location.replace('admin-login.html'); return; }
+  try {
+    const data = await requireApi({ action: 'admin_dashboard', token: localStorage.getItem(TOKEN_KEY) });
+    page.querySelector('.admin-content').hidden = false;
+    page.querySelector('#admin-user-count').textContent = data.stats.users; page.querySelector('#admin-post-count').textContent = data.stats.posts; page.querySelector('#admin-comment-count').textContent = data.stats.comments;
+    const fill = (id, rows, render) => { const target = page.querySelector(id); target.replaceChildren(); rows.forEach(item => target.appendChild(render(item))); };
+    const cell = (row, value) => { const td = document.createElement('td'); td.textContent = value || '-'; row.appendChild(td); };
+    fill('#admin-users', data.users, user => { const row = document.createElement('tr'); cell(row, user.name); cell(row, user.email); cell(row, dateText(user.createdAt)); return row; });
+    fill('#admin-posts', data.posts, post => { const row = document.createElement('tr'); cell(row, post.title); cell(row, post.authorName); cell(row, post.category); cell(row, dateText(post.createdAt)); cell(row, post.visibility === 'private' ? '비공개' : '공개'); const td = document.createElement('td'); const button = document.createElement('button'); button.className = 'admin-action'; button.textContent = post.visibility === 'private' ? '공개' : '비공개'; button.onclick = async () => { await requireApi({ action: 'admin_post_visibility', token: localStorage.getItem(TOKEN_KEY), id: post.id, visibility: post.visibility === 'private' ? 'public' : 'private' }); location.reload(); }; td.appendChild(button); row.appendChild(td); return row; });
+    fill('#admin-comments', data.comments, comment => { const row = document.createElement('tr'); cell(row, comment.content); cell(row, comment.authorName); cell(row, comment.postTitle); cell(row, dateText(comment.createdAt)); return row; });
+  } catch (error) { clearAuth(); location.replace('admin-login.html'); }
 }
 
-function drawHome(posts) { const grid = document.querySelector('#latest-posts'); if (!grid) return; grid.replaceChildren(); if (posts.length) posts.slice(0, 3).forEach(post => grid.appendChild(renderPostCard(post))); else grid.innerHTML = '<p class="empty-state">아직 등록된 게시글이 없습니다.</p>'; }
-function drawProfile(posts) { const list = document.querySelector('.profile-posts .post-list'); if (!list) return; const own = currentUser ? posts.filter(post => String(post.userId) === String(currentUser.id)) : posts.filter(post => !post.userId); list.replaceChildren(); if (own.length) own.forEach(post => list.appendChild(renderListItem(post, Boolean(currentUser)))); else list.innerHTML = '<p class="empty-state">아직 작성한 글이 없습니다.</p>'; const count = document.querySelector('.stats b'); if (count) count.textContent = own.length; if (currentUser) { document.querySelectorAll('[data-user-name]').forEach(el => el.textContent = currentUser.name); document.querySelectorAll('[data-user-email]').forEach(el => el.textContent = currentUser.email); } }
+async function bootstrap() {
+  currentUser = await refreshAuth();
+  const adminPage = Boolean(document.querySelector('.admin-page'));
+  isAdmin = await checkAdmin();
+  setupNavigation(); setupAuthForm(); setupAdminLogin();
+  if (adminPage) await setupAdminPage();
+  document.body.classList.add('app-ready');
+}
 
-function renderArchive(posts) { const list = document.querySelector('#post-list'); if (!list) return; const query = (document.querySelector('#post-search')?.value || '').trim().toLowerCase(); const category = document.querySelector('#category-filter')?.value || ''; const filtered = posts.filter(post => (!category || post.category === category) && (!query || `${post.title} ${post.content}`.toLowerCase().includes(query))); const pageSize = 5; const page = Number(document.querySelector('#post-page')?.value || 1); const pages = Math.max(1, Math.ceil(filtered.length / pageSize)); const safePage = Math.min(page, pages); list.replaceChildren(); filtered.slice((safePage - 1) * pageSize, safePage * pageSize).forEach(post => list.appendChild(renderListItem(post))); if (!filtered.length) list.innerHTML = '<p class="empty-state">조건에 맞는 게시글이 없습니다.</p>'; const pager = document.querySelector('#pagination'); if (pager) { pager.replaceChildren(); for (let i = 1; i <= pages; i++) { const button = document.createElement('button'); button.type = 'button'; button.textContent = i; button.className = i === safePage ? 'active' : ''; button.onclick = () => { document.querySelector('#post-page').value = i; renderArchive(allPosts); }; pager.appendChild(button); } } }
-function setupArchive(posts) { const search = document.querySelector('#post-search'); const category = document.querySelector('#category-filter'); const categoryLinks = document.querySelector('#category-links'); if (!search && !category && !categoryLinks) return; const categories = [...new Set(posts.map(post => String(post.category || '').trim()).filter(Boolean))].sort(); if (category) { category.replaceChildren(new Option('전체 카테고리', '')); categories.forEach(name => category.add(new Option(name, name))); } if (categoryLinks) { categoryLinks.replaceChildren(); categories.forEach(name => { const link = document.createElement('a'); link.href = `posts.html?category=${encodeURIComponent(name)}`; link.textContent = name; categoryLinks.appendChild(link); }); if (!categories.length) categoryLinks.textContent = '등록된 카테고리가 없습니다.'; } const requestedCategory = new URLSearchParams(location.search).get('category'); if (category && requestedCategory && categories.includes(requestedCategory)) category.value = requestedCategory; [search, category].filter(Boolean).forEach(input => input.addEventListener('input', () => { document.querySelector('#post-page').value = 1; renderArchive(posts); })); renderArchive(posts); }
-
-function setupSubscribe() { const form = document.querySelector('.subscribe'); if (!form) return; form.addEventListener('submit', async e => { e.preventDefault(); const email = form.querySelector('input').value.trim(); try { await postApi({ action: 'subscribe', email }); showMessage(form, '구독 신청이 완료되었습니다.'); form.reset(); } catch (error) { showMessage(form, error.message, true); } }); }
-
-function setupWriteForm() { const form = document.querySelector('.editor-wrap form'); if (!form || !requireAuth()) return; const category = form.querySelector('[name="category"]'); const title = form.querySelector('[name="title"]'); const content = form.querySelector('[name="content"]'); const editId = new URLSearchParams(location.search).get('edit'); const existing = editId && allPosts.find(post => String(post.id) === String(editId) && String(post.userId) === String(currentUser.id)); if (existing) { title.value = existing.title; content.value = existing.content; category.value = existing.category; const heading = document.querySelector('.form-card h1'); if (heading) heading.textContent = '글 수정'; }
-  form.addEventListener('submit', async e => { e.preventDefault(); const titleValue = title.value.trim(); const contentValue = content.value.trim(); if (!titleValue || !contentValue) return showMessage(form, '제목과 내용을 입력해 주세요.', true); try { const payload = existing ? { action: 'post_update', token: localStorage.getItem(TOKEN_KEY), id: editId, title: titleValue, content: contentValue, category: category.value } : { action: 'post_create', token: localStorage.getItem(TOKEN_KEY), title: titleValue, content: contentValue, category: category.value }; await postApi(payload); showMessage(form, existing ? '게시글을 수정했습니다.' : '게시글을 발행했습니다.'); setTimeout(() => { location.href = 'profile.html'; }, 400); } catch (error) { showMessage(form, error.message, true); } });
-  const previewButton = form.querySelector('.secondary-btn'); const preview = document.querySelector('.post-preview'); if (previewButton && preview) previewButton.addEventListener('click', () => { if (!title.value.trim() || !content.value.trim()) return showMessage(form, '제목과 내용을 입력한 뒤 미리보기를 눌러 주세요.', true); preview.querySelector('.post-preview-meta').textContent = `${category.value} · 미리보기`; preview.querySelector('.post-preview-title').textContent = title.value.trim(); preview.querySelector('.post-preview-content').textContent = content.value.trim(); preview.hidden = false; preview.scrollIntoView({ behavior: 'smooth' }); }); }
-
-async function setupComments(postId) { const section = document.querySelector('#comments'); if (!section || !postId) return; const list = section.querySelector('.comment-list'); const form = section.querySelector('form'); const draw = comments => { list.replaceChildren(); if (!comments.length) list.innerHTML = '<p class="empty-state">첫 댓글을 남겨보세요.</p>'; comments.forEach(comment => { const item = document.createElement('article'); item.className = 'comment'; item.innerHTML = '<div><strong></strong><small></small></div><p></p>'; item.querySelector('strong').textContent = comment.name; item.querySelector('small').textContent = formatDate(comment.createdAt); item.querySelector('p').textContent = comment.content; if (currentUser && String(currentUser.id) === String(comment.userId)) { const del = document.createElement('button'); del.type = 'button'; del.textContent = '삭제'; del.onclick = async () => { await postApi({ action: 'comment_delete', token: localStorage.getItem(TOKEN_KEY), id: comment.id }); setupComments(postId); }; item.querySelector('div').appendChild(del); } list.appendChild(item); }); }; try { const result = await postApi({ action: 'comment_list', postId }); draw(result.comments); } catch (error) { list.textContent = error.message; } if (form) form.addEventListener('submit', async e => { e.preventDefault(); if (!requireAuth()) return; const input = form.querySelector('textarea'); try { await postApi({ action: 'comment_create', token: localStorage.getItem(TOKEN_KEY), postId, content: input.value }); input.value = ''; setupComments(postId); } catch (error) { showMessage(form, error.message, true); } }); }
-
-async function setupDetail() { const article = document.querySelector('.article'); if (!article) return; const id = new URLSearchParams(location.search).get('id'); if (!id) { const comments = document.querySelector('#comments'); if (comments) comments.hidden = true; return; } const posts = await syncPosts(); const post = posts.find(item => String(item.id) === String(id)); if (!post) { article.querySelector('h1').textContent = '게시글을 찾을 수 없습니다.'; article.querySelector('.article-body').textContent = ''; return; } article.querySelector('.eyebrow').textContent = `${post.category} · ${formatDate(post.date)}`; article.querySelector('h1').textContent = post.title; article.querySelector('.article-meta').textContent = `${currentUser?.name || '김윤자'} · ${formatDate(post.date)}`; article.querySelector('.article-body').textContent = post.content; await setupComments(id); }
-
-async function bootstrap() { currentUser = await refreshAuth(); if (location.pathname.endsWith('profile.html') && !currentUser) { requireAuth(); return; } setupAuthNavigation(); setupAuthForm(); setupSubscribe(); const posts = await syncPosts(); drawHome(posts); drawProfile(posts); setupArchive(posts); setupWriteForm(); setupDetail(); }
 bootstrap();
