@@ -4,6 +4,7 @@ const SESSION_DAYS = 7;
 const POSTS_SHEET = 'Posts';
 const SUBSCRIBERS_SHEET = 'Subscribers';
 const COMMENTS_SHEET = 'Comments';
+const REACTIONS_SHEET = 'PostReactions';
 const ADMIN_EMAIL_PROPERTY = 'ADMIN_EMAIL';
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -12,10 +13,11 @@ function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   createSheet_(ss, USERS_SHEET, ['id', 'name', 'email', 'passwordHash', 'salt', 'createdAt']);
   createSheet_(ss, SESSIONS_SHEET, ['token', 'userId', 'expiresAt', 'createdAt']);
-  createSheet_(ss, POSTS_SHEET, ['id', 'userId', 'title', 'content', 'category', 'createdAt', 'updatedAt']);
+  createSheet_(ss, POSTS_SHEET, ['id', 'userId', 'title', 'content', 'category', 'createdAt', 'updatedAt', 'visibility', 'viewCount', 'likeCount', 'dislikeCount']);
   ensurePostVisibilityColumn_();
   createSheet_(ss, SUBSCRIBERS_SHEET, ['email', 'createdAt']);
-  createSheet_(ss, COMMENTS_SHEET, ['id', 'postId', 'userId', 'content', 'createdAt']);
+  createSheet_(ss, COMMENTS_SHEET, ['id', 'postId', 'userId', 'content', 'createdAt', 'visibility']);
+  createSheet_(ss, REACTIONS_SHEET, ['id', 'postId', 'userId', 'value', 'createdAt']);
 
   const properties = PropertiesService.getScriptProperties();
   if (!properties.getProperty('PASSWORD_PEPPER')) {
@@ -39,6 +41,8 @@ function doPost(e) {
     if (data.action === 'post_create') return createPost_(data);
     if (data.action === 'post_list') return listPosts_(data.token);
     if (data.action === 'post_get') return getPost_(data.id, data.token);
+    if (data.action === 'post_view') return viewPost_(data.id);
+    if (data.action === 'post_reaction') return reactPost_(data);
     if (data.action === 'post_update') return updatePost_(data);
     if (data.action === 'post_delete') return deletePost_(data);
     if (data.action === 'subscribe') return subscribe_(data);
@@ -49,6 +53,7 @@ function doPost(e) {
     if (data.action === 'admin_dashboard') return adminDashboard_(data.token);
     if (data.action === 'admin_post_delete') return adminDeletePost_(data.token, data.id);
     if (data.action === 'admin_comment_delete') return adminDeleteComment_(data.token, data.id);
+    if (data.action === 'admin_comment_visibility') return adminSetCommentVisibility_(data.token, data.id, data.visibility);
     if (data.action === 'admin_post_visibility') return adminSetPostVisibility_(data.token, data.id, data.visibility);
     return json_({ ok: false, message: '잘못된 요청입니다.' });
   } catch (error) {
@@ -170,7 +175,30 @@ function createPost_(data) {
 }
 
 function postFromRow_(row) {
-  return { id: row[0], userId: row[1], title: row[2], content: row[3], category: row[4], createdAt: row[5], updatedAt: row[6], visibility: row[7] || 'public' };
+  return { id: row[0], userId: row[1], title: row[2], content: row[3], category: row[4], createdAt: row[5], updatedAt: row[6], visibility: row[7] || 'public', viewCount: Number(row[8] || 0), likeCount: Number(row[9] || 0), dislikeCount: Number(row[10] || 0) };
+}
+
+function viewPost_(id) {
+  const sheet = sheet_(POSTS_SHEET); const rows = sheet.getDataRange().getValues();
+  const index = rows.findIndex(row => String(row[0]) === String(id));
+  if (index < 1) return json_({ ok: false, message: 'Post not found.' });
+  const count = Number(rows[index][8] || 0) + 1;
+  sheet.getRange(index + 1, 9).setValue(count);
+  return json_({ ok: true, viewCount: count });
+}
+
+function reactPost_(data) {
+  const session = validSession_(data.token);
+  if (!session) return json_({ ok: false, message: 'Login required.' });
+  const value = String(data.value || '');
+  if (!['like', 'dislike'].includes(value)) return json_({ ok: false, message: 'Invalid reaction.' });
+  const sheet = sheet_(REACTIONS_SHEET); const rows = sheet.getDataRange().getValues();
+  const index = rows.findIndex(row => String(row[1]) === String(data.id) && String(row[2]) === String(session.userId));
+  if (index >= 1) { if (String(rows[index][3]) === value) sheet.deleteRow(index + 1); else sheet.getRange(index + 1, 4).setValue(value); }
+  else sheet.appendRow([Utilities.getUuid(), data.id, session.userId, value, new Date().toISOString()]);
+  const updated = sheet.getDataRange().getValues().slice(1).filter(row => String(row[1]) === String(data.id));
+  const mine = updated.find(row => String(row[2]) === String(session.userId));
+  return json_({ ok: true, likeCount: updated.filter(row => row[3] === 'like').length, dislikeCount: updated.filter(row => row[3] === 'dislike').length, myReaction: mine ? mine[3] : null });
 }
 
 function listPosts_(token) {
@@ -222,7 +250,7 @@ function listComments_(postId) {
   if (!postId) return json_({ ok: true, comments: [] });
   const rows = sheet_(COMMENTS_SHEET).getDataRange().getValues();
   const users = sheet_(USERS_SHEET).getDataRange().getValues().slice(1);
-  const comments = rows.slice(1).filter(row => String(row[1]) === String(postId)).map(row => {
+  const comments = rows.slice(1).filter(row => String(row[1]) === String(postId) && String(row[5] || 'public') === 'public').map(row => {
     const user = users.find(item => String(item[0]) === String(row[2]));
     return { id: row[0], postId: row[1], userId: row[2], name: user ? user[1] : '회원', content: row[3], createdAt: row[4] };
   });
@@ -239,7 +267,7 @@ function createComment_(data) {
   const postRows = sheet_(POSTS_SHEET).getDataRange().getValues();
   if (!postRows.slice(1).some(row => String(row[0]) === postId)) return json_({ ok: false, message: '게시글을 찾을 수 없습니다.' });
   const comment = { id: Utilities.getUuid(), postId, userId: session.userId, content, createdAt: new Date().toISOString() };
-  sheet_(COMMENTS_SHEET).appendRow([comment.id, comment.postId, comment.userId, comment.content, comment.createdAt]);
+  sheet_(COMMENTS_SHEET).appendRow([comment.id, comment.postId, comment.userId, comment.content, comment.createdAt, 'public']);
   return json_({ ok: true, comment });
 }
 
@@ -297,6 +325,16 @@ function adminDeleteComment_(token, id) {
   return json_({ ok: true });
 }
 
+function adminSetCommentVisibility_(token, id, visibility) {
+  if (!adminUser_(token)) return json_({ ok: false, message: 'Admin permission required.' });
+  if (!['public', 'private'].includes(visibility)) return json_({ ok: false, message: 'Invalid visibility.' });
+  const comments = sheet_(COMMENTS_SHEET); const rows = comments.getDataRange().getValues();
+  const index = rows.findIndex(row => String(row[0]) === String(id));
+  if (index < 1) return json_({ ok: false, message: 'Comment not found.' });
+  comments.getRange(index + 1, 6).setValue(visibility);
+  return json_({ ok: true, visibility });
+}
+
 function adminSetPostVisibility_(token, id, visibility) {
   if (!adminUser_(token)) return json_({ ok: false, message: '관리자 권한이 필요합니다.' });
   if (!['public', 'private'].includes(visibility)) return json_({ ok: false, message: '공개 상태 값이 올바르지 않습니다.' });
@@ -338,10 +376,13 @@ function ensureSetup_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   createSheet_(ss, USERS_SHEET, ['id', 'name', 'email', 'passwordHash', 'salt', 'createdAt']);
   createSheet_(ss, SESSIONS_SHEET, ['token', 'userId', 'expiresAt', 'createdAt']);
-  createSheet_(ss, POSTS_SHEET, ['id', 'userId', 'title', 'content', 'category', 'createdAt', 'updatedAt']);
+  createSheet_(ss, POSTS_SHEET, ['id', 'userId', 'title', 'content', 'category', 'createdAt', 'updatedAt', 'visibility', 'viewCount', 'likeCount', 'dislikeCount']);
   ensurePostVisibilityColumn_();
   createSheet_(ss, SUBSCRIBERS_SHEET, ['email', 'createdAt']);
-  createSheet_(ss, COMMENTS_SHEET, ['id', 'postId', 'userId', 'content', 'createdAt']);
+  createSheet_(ss, COMMENTS_SHEET, ['id', 'postId', 'userId', 'content', 'createdAt', 'visibility']);
+  createSheet_(ss, REACTIONS_SHEET, ['id', 'postId', 'userId', 'value', 'createdAt']);
+  ensurePostMetricsColumns_();
+  ensureCommentVisibilityColumn_();
 
   const properties = PropertiesService.getScriptProperties();
   if (!properties.getProperty('PASSWORD_PEPPER')) {
@@ -371,6 +412,29 @@ function ensurePostVisibilityColumn_() {
   const rows = sheet.getLastRow();
   if (rows > 1) {
     const range = sheet.getRange(2, 8, rows - 1, 1);
+    range.setValues(range.getValues().map(row => [row[0] || 'public']));
+  }
+}
+
+function ensurePostMetricsColumns_() {
+  const sheet = sheet_(POSTS_SHEET);
+  ['visibility', 'viewCount', 'likeCount', 'dislikeCount'].forEach((header, index) => {
+    const column = 8 + index;
+    if (sheet.getRange(1, column).getValue() !== header) sheet.getRange(1, column).setValue(header);
+  });
+  if (sheet.getLastRow() > 1) {
+    for (let column = 9; column <= 11; column++) {
+      const range = sheet.getRange(2, column, sheet.getLastRow() - 1, 1);
+      range.setValues(range.getValues().map(row => [Number(row[0] || 0)]));
+    }
+  }
+}
+
+function ensureCommentVisibilityColumn_() {
+  const sheet = sheet_(COMMENTS_SHEET);
+  if (sheet.getRange(1, 6).getValue() !== 'visibility') sheet.getRange(1, 6).setValue('visibility');
+  if (sheet.getLastRow() > 1) {
+    const range = sheet.getRange(2, 6, sheet.getLastRow() - 1, 1);
     range.setValues(range.getValues().map(row => [row[0] || 'public']));
   }
 }
