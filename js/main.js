@@ -37,7 +37,7 @@ function setupAuthNavigation() {
 function requireAuth() { if (currentUser) return true; location.href = `login.html?next=${encodeURIComponent(location.pathname.split('/').pop() || 'index.html')}`; return false; }
 
 function setupAuthForm() {
-  const form = document.querySelector('.auth-card form'); if (!form) return; const isSignup = location.pathname.endsWith('signup.html');
+  const form = document.querySelector('.auth-card form[data-auth-mode]'); if (!form) return; const isSignup = form.dataset.authMode === 'signup';
   form.addEventListener('submit', async e => {
     e.preventDefault(); const fields = new FormData(form);
     if (isSignup && fields.get('password') !== fields.get('passwordConfirm')) return showMessage(form, '비밀번호가 일치하지 않습니다.', true);
