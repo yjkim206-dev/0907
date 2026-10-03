@@ -42,5 +42,18 @@ async function setupDetail() { const article = document.querySelector('.article'
 
 async function setupComments(postId) { const section = document.querySelector('#comments'); if (!section) return; const list = section.querySelector('.comment-list'); const draw = comments => { list.replaceChildren(); comments.forEach(comment => { const item = document.createElement('article'); item.className = 'comment'; item.textContent = `${comment.name}: ${comment.content}`; if (currentUser && String(currentUser.id) === String(comment.userId)) { const button = document.createElement('button'); button.textContent = 'Delete'; button.onclick = async () => { await requiredApi({ action: 'comment_delete', token: localStorage.getItem(TOKEN_KEY), id: comment.id }); setupComments(postId); }; item.appendChild(button); } list.appendChild(item); }); }; const result = await requiredApi({ action: 'comment_list', postId }); draw(result.comments); const form = section.querySelector('form'); if (form) form.onsubmit = async event => { event.preventDefault(); if (!currentUser) return location.href = `login.html?next=post-detail.html?id=${encodeURIComponent(postId)}`; try { await requiredApi({ action: 'comment_create', token: localStorage.getItem(TOKEN_KEY), postId, content: form.querySelector('textarea').value }); form.reset(); setupComments(postId); } catch (error) { showMessage(form, error.message, true); } }; }
 
-async function bootstrap() { currentUser = await refreshAuth(); isAdmin = await checkAdmin(); setupNavigation(); setupAuthForm(); setupAdminLogin(); await setupAdminPage(); await setupWrite(); await setupDetail(); document.body.classList.add('app-ready'); }
+async function setupPostAuthorActions() {
+  const article = document.querySelector('.article'); const id = new URLSearchParams(location.search).get('id');
+  if (!article || !id || !currentUser) return;
+  try {
+    const result = await requiredApi({ action: 'post_get', id, token: localStorage.getItem(TOKEN_KEY) });
+    if (String(result.post.userId) !== String(currentUser.id)) return;
+    const footer = article.querySelector('.article-footer') || article;
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'button secondary-btn'; button.textContent = 'Delete my post';
+    button.onclick = async () => { if (!confirm('Delete this post?')) return; await requiredApi({ action: 'post_delete', token: localStorage.getItem(TOKEN_KEY), id }); location.href = 'profile.html'; };
+    footer.appendChild(button);
+  } catch { /* the server remains the final permission check */ }
+}
+
+async function bootstrap() { currentUser = await refreshAuth(); isAdmin = await checkAdmin(); setupNavigation(); setupAuthForm(); setupAdminLogin(); await setupAdminPage(); await setupWrite(); await setupDetail(); await setupPostAuthorActions(); document.body.classList.add('app-ready'); }
 bootstrap();
