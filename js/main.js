@@ -27,6 +27,103 @@ function setupNavigation() {
   if (currentUser && login) { login.textContent = 'Logout'; login.href = '#logout'; login.onclick = async event => { event.preventDefault(); try { await api({ action: 'logout', token: localStorage.getItem(TOKEN_KEY) }); } finally { clearAuth(); location.href = 'index.html'; } }; }
 }
 
+function postLink(id) { return `post-detail.html?id=${encodeURIComponent(id)}`; }
+function postDate(value) { return dateText(value).replace(/\.$/, ''); }
+function postExcerpt(content, limit = 150) {
+  const text = String(content || '').replace(/\s+/g, ' ').trim();
+  return text.length > limit ? `${text.slice(0, limit)}…` : text;
+}
+
+function createPostListItem(post) {
+  const item = document.createElement('article');
+  item.className = 'list-post';
+  const date = document.createElement('div');
+  date.className = 'list-date';
+  date.textContent = `${postDate(post.createdAt)}\n${post.category || ''}`;
+  date.style.whiteSpace = 'pre-line';
+  const body = document.createElement('div');
+  const heading = document.createElement('h2');
+  const title = document.createElement('a');
+  title.href = postLink(post.id);
+  title.textContent = post.title;
+  heading.appendChild(title);
+  const excerpt = document.createElement('p');
+  excerpt.textContent = postExcerpt(post.content);
+  const link = document.createElement('a');
+  link.className = 'text-link';
+  link.href = postLink(post.id);
+  link.textContent = '자세히 읽기 →';
+  body.append(heading, excerpt, link);
+  item.append(date, body);
+  return item;
+}
+
+async function loadPosts() {
+  const result = await requiredApi({ action: 'post_list', token: localStorage.getItem(TOKEN_KEY) });
+  return result.posts || [];
+}
+
+async function setupHomePosts() {
+  const grid = document.querySelector('#latest-posts');
+  if (!grid) return;
+  try {
+    const posts = await loadPosts();
+    grid.replaceChildren();
+    posts.slice(0, 3).forEach(post => {
+      const card = document.createElement('article');
+      card.className = 'post-card';
+      const meta = document.createElement('p');
+      meta.className = 'post-meta';
+      meta.textContent = `${post.category || ''} · ${postDate(post.createdAt)}`;
+      const heading = document.createElement('h3');
+      const title = document.createElement('a');
+      title.href = postLink(post.id);
+      title.textContent = post.title;
+      heading.appendChild(title);
+      const excerpt = document.createElement('p');
+      excerpt.className = 'post-excerpt';
+      excerpt.textContent = postExcerpt(post.content);
+      const link = document.createElement('a');
+      link.className = 'text-link';
+      link.href = postLink(post.id);
+      link.textContent = '자세히 읽기 →';
+      card.append(meta, heading, excerpt, link);
+      grid.appendChild(card);
+    });
+  } catch { grid.replaceChildren(); }
+}
+
+async function setupPostList() {
+  const list = document.querySelector('#post-list');
+  if (!list) return;
+  const search = document.querySelector('#post-search');
+  const category = document.querySelector('#category-filter');
+  const categoryLinks = document.querySelector('#category-links');
+  try {
+    const posts = await loadPosts();
+    const categories = [...new Set(posts.map(post => String(post.category || '').trim()).filter(Boolean))].sort();
+    if (category) categories.forEach(value => category.add(new Option(value, value)));
+    if (categoryLinks) categories.forEach(value => {
+      const link = document.createElement('a');
+      link.href = `posts.html?category=${encodeURIComponent(value)}`;
+      link.textContent = value;
+      categoryLinks.appendChild(link);
+    });
+    const initialCategory = new URLSearchParams(location.search).get('category') || '';
+    if (category) category.value = initialCategory;
+    const render = () => {
+      const query = String(search?.value || '').trim().toLowerCase();
+      const selected = category?.value || '';
+      const filtered = posts.filter(post => (!selected || post.category === selected) && (!query || `${post.title} ${post.content} ${post.category}`.toLowerCase().includes(query)));
+      list.replaceChildren();
+      filtered.forEach(post => list.appendChild(createPostListItem(post)));
+    };
+    search?.addEventListener('input', render);
+    category?.addEventListener('change', render);
+    render();
+  } catch { list.replaceChildren(); }
+}
+
 function setupAuthForm() {
   const form = document.querySelector('form[data-auth-mode]'); if (!form) return;
   const signup = form.dataset.authMode === 'signup';
@@ -68,5 +165,5 @@ async function setupPostAuthorActions() {
   } catch { /* the server remains the final permission check */ }
 }
 
-async function bootstrap() { currentUser = await refreshAuth(); isAdmin = await checkAdmin(); setupNavigation(); setupAuthForm(); setupAdminLogin(); await setupAdminPage(); await refreshAdminMetrics(); await setupWrite(); await setupDetail(); await setupPostAuthorActions(); document.body.classList.add('app-ready'); }
+async function bootstrap() { currentUser = await refreshAuth(); isAdmin = await checkAdmin(); setupNavigation(); setupAuthForm(); setupAdminLogin(); await setupHomePosts(); await setupPostList(); await setupAdminPage(); await refreshAdminMetrics(); await setupWrite(); await setupDetail(); await setupPostAuthorActions(); document.body.classList.add('app-ready'); }
 bootstrap();
