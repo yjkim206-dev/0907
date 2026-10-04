@@ -7,6 +7,6 @@
     .then(response => response.json())
     .then(result => {
       if (!result.ok || !result.post.imageUrl) return;
-      const image = document.createElement('img'); image.className = 'article-image'; image.src = result.post.imageUrl; image.alt = result.post.title || '게시글 대표 사진'; image.loading = 'lazy'; body.before(image);
+      const image = document.createElement('img'); image.className = 'article-image'; image.src = result.post.imageUrl; image.alt = result.post.title || '게시글 대표 사진'; image.loading = 'eager'; image.referrerPolicy = 'no-referrer'; body.before(image);
     }).catch(() => {});
 })();
