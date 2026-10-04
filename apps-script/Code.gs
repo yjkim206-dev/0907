@@ -7,6 +7,8 @@ const COMMENTS_SHEET = 'Comments';
 const REACTIONS_SHEET = 'PostReactions';
 const VIEWS_SHEET = 'PostViews';
 const ADMIN_EMAIL_PROPERTY = 'ADMIN_EMAIL';
+const UPLOAD_FOLDER_PROPERTY = 'UPLOAD_FOLDER_ID';
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // 최초 1회 실행: 회원·세션 시트와 비밀번호 해싱용 비밀값을 생성합니다.
@@ -14,8 +16,9 @@ function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   createSheet_(ss, USERS_SHEET, ['id', 'name', 'email', 'passwordHash', 'salt', 'createdAt']);
   createSheet_(ss, SESSIONS_SHEET, ['token', 'userId', 'expiresAt', 'createdAt']);
-  createSheet_(ss, POSTS_SHEET, ['id', 'userId', 'title', 'content', 'category', 'createdAt', 'updatedAt', 'visibility', 'viewCount', 'likeCount', 'dislikeCount']);
+  createSheet_(ss, POSTS_SHEET, ['id', 'userId', 'title', 'content', 'category', 'createdAt', 'updatedAt', 'visibility', 'viewCount', 'likeCount', 'dislikeCount', 'imageUrl']);
   ensurePostVisibilityColumn_();
+  ensurePostImageColumn_();
   createSheet_(ss, SUBSCRIBERS_SHEET, ['email', 'createdAt']);
   createSheet_(ss, COMMENTS_SHEET, ['id', 'postId', 'userId', 'content', 'createdAt', 'visibility']);
   createSheet_(ss, REACTIONS_SHEET, ['id', 'postId', 'userId', 'value', 'createdAt']);
@@ -41,6 +44,7 @@ function doPost(e) {
     if (data.action === 'me') return getUser_(data.token);
     if (data.action === 'logout') return logout_(data.token);
     if (data.action === 'password_change') return changePassword_(data);
+    if (data.action === 'image_upload') return uploadImage_(data);
     if (data.action === 'post_create') return createPost_(data);
     if (data.action === 'post_list') return listPosts_(data.token);
     if (data.action === 'post_get') return getPost_(data.id, data.token);
@@ -178,6 +182,32 @@ function changePassword_(data) {
   return json_({ ok: true, message: '비밀번호가 변경되었습니다.' });
 }
 
+function uploadImage_(data) {
+  const session = validSession_(data.token);
+  if (!session) return json_({ ok: false, message: '로그인이 필요합니다.' });
+  const dataUrl = String(data.dataUrl || '');
+  const match = dataUrl.match(/^data:(image\/(?:jpeg|png|gif|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) return json_({ ok: false, message: 'JPG, PNG, GIF, WEBP 이미지만 업로드할 수 있습니다.' });
+  const bytes = Utilities.base64Decode(match[2]);
+  if (!bytes.length || bytes.length > MAX_IMAGE_BYTES) return json_({ ok: false, message: '이미지는 5MB 이하만 업로드할 수 있습니다.' });
+  const extension = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' }[match[1]];
+  const name = `post-${session.userId}-${Date.now()}.${extension}`;
+  const file = uploadFolder_().createFile(Utilities.newBlob(bytes, match[1], name));
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return json_({ ok: true, imageUrl: `https://drive.google.com/uc?export=view&id=${file.getId()}`, imageId: file.getId() });
+}
+
+function uploadFolder_() {
+  const properties = PropertiesService.getScriptProperties();
+  const savedId = properties.getProperty(UPLOAD_FOLDER_PROPERTY);
+  if (savedId) {
+    try { return DriveApp.getFolderById(savedId); } catch (error) { properties.deleteProperty(UPLOAD_FOLDER_PROPERTY); }
+  }
+  const folder = DriveApp.createFolder('모퉁이 기록 업로드');
+  properties.setProperty(UPLOAD_FOLDER_PROPERTY, folder.getId());
+  return folder;
+}
+
 function subscribe_(data) {
   const email = String(data.email || '').trim().toLowerCase();
   if (!EMAIL_PATTERN.test(email)) return json_({ ok: false, message: '올바른 이메일 주소를 입력하세요.' });
@@ -195,13 +225,14 @@ function createPost_(data) {
   const category = String(data.category || '').trim();
   if (!title || !content || !category) return json_({ ok: false, message: '카테고리, 제목, 내용을 입력하세요.' });
   const now = new Date().toISOString();
-  const post = { id: Utilities.getUuid(), userId: session.userId, title, content, category, createdAt: now, updatedAt: now, visibility: 'public' };
-  sheet_(POSTS_SHEET).appendRow([post.id, post.userId, post.title, post.content, post.category, post.createdAt, post.updatedAt, post.visibility]);
+  const imageUrl = String(data.imageUrl || '').trim();
+  const post = { id: Utilities.getUuid(), userId: session.userId, title, content, category, createdAt: now, updatedAt: now, visibility: 'public', imageUrl };
+  sheet_(POSTS_SHEET).appendRow([post.id, post.userId, post.title, post.content, post.category, post.createdAt, post.updatedAt, post.visibility, 0, 0, 0, imageUrl]);
   return json_({ ok: true, post });
 }
 
 function postFromRow_(row) {
-  return { id: row[0], userId: row[1], title: row[2], content: row[3], category: row[4], createdAt: row[5], updatedAt: row[6], visibility: row[7] || 'public', viewCount: Number(row[8] || 0), likeCount: Number(row[9] || 0), dislikeCount: Number(row[10] || 0) };
+  return { id: row[0], userId: row[1], title: row[2], content: row[3], category: row[4], createdAt: row[5], updatedAt: row[6], visibility: row[7] || 'public', viewCount: Number(row[8] || 0), likeCount: Number(row[9] || 0), dislikeCount: Number(row[10] || 0), imageUrl: row[11] || '' };
 }
 
 function viewPost_(id, visitorId) {
@@ -265,7 +296,9 @@ function updatePost_(data) {
   const title = String(data.title || '').trim(); const content = String(data.content || '').trim();
   const category = String(data.category || '').trim();
   if (!title || !content || !category) return json_({ ok: false, message: '카테고리, 제목, 내용을 입력하세요.' });
+  const imageUrl = String(data.imageUrl || '').trim();
   sheet.getRange(index + 1, 3, 1, 5).setValues([[title, content, category, rows[index][5], new Date().toISOString()]]);
+  sheet.getRange(index + 1, 12).setValue(imageUrl);
   return json_({ ok: true, message: '게시글이 수정되었습니다.' });
 }
 
@@ -410,8 +443,9 @@ function ensureSetup_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   createSheet_(ss, USERS_SHEET, ['id', 'name', 'email', 'passwordHash', 'salt', 'createdAt']);
   createSheet_(ss, SESSIONS_SHEET, ['token', 'userId', 'expiresAt', 'createdAt']);
-  createSheet_(ss, POSTS_SHEET, ['id', 'userId', 'title', 'content', 'category', 'createdAt', 'updatedAt', 'visibility', 'viewCount', 'likeCount', 'dislikeCount']);
+  createSheet_(ss, POSTS_SHEET, ['id', 'userId', 'title', 'content', 'category', 'createdAt', 'updatedAt', 'visibility', 'viewCount', 'likeCount', 'dislikeCount', 'imageUrl']);
   ensurePostVisibilityColumn_();
+  ensurePostImageColumn_();
   createSheet_(ss, SUBSCRIBERS_SHEET, ['email', 'createdAt']);
   createSheet_(ss, COMMENTS_SHEET, ['id', 'postId', 'userId', 'content', 'createdAt', 'visibility']);
   createSheet_(ss, REACTIONS_SHEET, ['id', 'postId', 'userId', 'value', 'createdAt']);
@@ -463,6 +497,11 @@ function ensurePostMetricsColumns_() {
       range.setValues(range.getValues().map(row => [Number(row[0] || 0)]));
     }
   }
+}
+
+function ensurePostImageColumn_() {
+  const sheet = sheet_(POSTS_SHEET);
+  if (sheet.getRange(1, 12).getValue() !== 'imageUrl') sheet.getRange(1, 12).setValue('imageUrl');
 }
 
 function ensureCommentVisibilityColumn_() {

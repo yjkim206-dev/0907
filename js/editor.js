@@ -5,8 +5,10 @@
   if (!form) return;
   const message = form.querySelector('.form-message');
   const preview = document.querySelector('[data-post-preview]');
+  const imageInput = form.querySelector('[data-image-input]');
   const params = new URLSearchParams(location.search);
   const editId = params.get('edit');
+  let existingImageUrl = '';
   const request = async payload => {
     const response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
     const result = await response.json();
@@ -18,6 +20,10 @@
     preview.querySelector('.post-preview-meta').textContent = form.category.value.trim() || '카테고리';
     preview.querySelector('.post-preview-title').textContent = form.title.value.trim() || '제목 미리보기';
     preview.querySelector('.post-preview-content').textContent = form.content.value.trim() || '내용 미리보기';
+    const image = preview.querySelector('[data-preview-image]');
+    const file = imageInput.files[0];
+    image.src = file ? URL.createObjectURL(file) : existingImageUrl;
+    image.hidden = !image.src;
     preview.hidden = false;
     preview.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -31,18 +37,28 @@
       form.category.value = result.post.category || '';
       form.title.value = result.post.title || '';
       form.content.value = result.post.content || '';
+      existingImageUrl = result.post.imageUrl || '';
       document.querySelector('[data-editor-kicker]').textContent = 'EDIT POST';
       document.querySelector('[data-editor-title]').textContent = '글 수정';
       document.querySelector('[data-submit-label]').textContent = '수정 저장';
     } catch (error) { show(error.message, true); form.querySelectorAll('input, textarea, button').forEach(el => { el.disabled = true; }); }
   };
   form.querySelector('[data-preview-toggle]').addEventListener('click', drawPreview);
+  const fileDataUrl = file => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('이미지를 읽을 수 없습니다.')); reader.readAsDataURL(file); });
   form.addEventListener('submit', async event => {
     event.preventDefault();
     const submit = form.querySelector('[type="submit"]');
     submit.disabled = true;
     try {
-      const payload = { action: editId ? 'post_update' : 'post_create', token, category: form.category.value, title: form.title.value, content: form.content.value };
+      let imageUrl = existingImageUrl;
+      const file = imageInput.files[0];
+      if (file) {
+        if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) throw new Error('JPG, PNG, GIF, WEBP 형식의 5MB 이하 이미지만 올릴 수 있습니다.');
+        show('사진을 업로드하는 중입니다.');
+        const upload = await request({ action: 'image_upload', token, dataUrl: await fileDataUrl(file) });
+        imageUrl = upload.imageUrl;
+      }
+      const payload = { action: editId ? 'post_update' : 'post_create', token, category: form.category.value, title: form.title.value, content: form.content.value, imageUrl };
       if (editId) payload.id = editId;
       const result = await request(payload);
       show(editId ? '게시글을 수정했습니다.' : '게시글을 발행했습니다.');
