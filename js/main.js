@@ -38,11 +38,17 @@ function postExcerpt(content, limit = 150) {
   return text.length > limit ? `${text.slice(0, limit)}…` : text;
 }
 
+function displayImageUrl(url) {
+  const value = String(url || '');
+  const driveId = value.match(/^https:\/\/drive\.google\.com\/[^?]+\?(?:[^#]*&)?id=([^&#]+)/);
+  return driveId ? `https://drive.google.com/thumbnail?id=${encodeURIComponent(driveId[1])}&sz=w1600` : value;
+}
+
 function postThumbnail(post, className) {
   if (!post.imageUrl) return null;
   const image = document.createElement('img');
   image.className = className;
-  image.src = post.imageUrl;
+  image.src = displayImageUrl(post.imageUrl);
   image.alt = post.title ? `${post.title} 대표 사진` : '게시글 대표 사진';
   image.loading = 'lazy';
   image.referrerPolicy = 'no-referrer';
