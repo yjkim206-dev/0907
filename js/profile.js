@@ -1,5 +1,5 @@
 (() => {
-  const API_URL = 'https://script.google.com/macros/s/AKfycbzW1q_cZcIh8IPG0-wAlzG6Mpz8EnqCCMsmdkPTyG02Z2q66Ky0c7sRbZAl3gODIiVN/exec';
+  const API_URL = 'https://script.google.com/macros/s/AKfycbx3dN5zMqLWiKi_gvRD1riWlL3JdCHIsTgG-WYeXFC5RjMuOyEcXcLkI-G8sN2jx5RR/exec';
   const token = localStorage.getItem('blog_member_auth_token');
   const list = document.querySelector('[data-profile-post-list]');
   if (!list) return;

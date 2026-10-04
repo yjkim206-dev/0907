@@ -2,7 +2,7 @@
   const id = new URLSearchParams(location.search).get('id');
   const body = document.querySelector('.article-body');
   if (!id || !body) return;
-  const API_URL = 'https://script.google.com/macros/s/AKfycbzW1q_cZcIh8IPG0-wAlzG6Mpz8EnqCCMsmdkPTyG02Z2q66Ky0c7sRbZAl3gODIiVN/exec';
+  const API_URL = 'https://script.google.com/macros/s/AKfycbx3dN5zMqLWiKi_gvRD1riWlL3JdCHIsTgG-WYeXFC5RjMuOyEcXcLkI-G8sN2jx5RR/exec';
   fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'post_get', id, token: localStorage.getItem('blog_member_auth_token') }) })
     .then(response => response.json())
     .then(result => {
