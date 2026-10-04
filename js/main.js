@@ -5,6 +5,8 @@ const ADMIN_TOKEN_KEY = 'blog_admin_auth_token';
 const TOKEN_KEY = isAdminContext() ? ADMIN_TOKEN_KEY : MEMBER_TOKEN_KEY;
 let currentUser = null;
 let isAdmin = false;
+let adminDashboardCache = null;
+let loadedPost = null;
 
 const nav = document.querySelector('.site-nav');
 const menu = document.querySelector('.menu-toggle');
@@ -18,7 +20,7 @@ function dateText(value) { return value ? new Date(value).toLocaleDateString('ko
 function visitorId() { let id = localStorage.getItem('blog_visitor_id'); if (!id) { id = `${Date.now()}-${Math.random().toString(36).slice(2)}`; localStorage.setItem('blog_visitor_id', id); } return id; }
 
 async function refreshAuth() { const token = localStorage.getItem(TOKEN_KEY); if (!token) return null; try { const result = await api({ action: 'me', token }); if (!result.ok) { clearAuth(); return null; } currentUser = result.user; return currentUser; } catch { clearAuth(); return null; } }
-async function checkAdmin() { if (!isAdminContext() || !currentUser) return false; try { await requiredApi({ action: 'admin_dashboard', token: localStorage.getItem(TOKEN_KEY) }); isAdmin = true; return true; } catch { isAdmin = false; return false; } }
+async function checkAdmin() { if (!isAdminContext() || !currentUser) return false; try { adminDashboardCache = await requiredApi({ action: 'admin_dashboard', token: localStorage.getItem(TOKEN_KEY) }); isAdmin = true; return true; } catch { isAdmin = false; return false; } }
 
 function setupNavigation() {
   if (!nav) return;
@@ -134,7 +136,7 @@ function setupAuthForm() {
 
 function setupAdminLogin() { const form = document.querySelector('form[data-admin-auth]'); if (!form) return; form.addEventListener('submit', async event => { event.preventDefault(); const data = new FormData(form); const button = form.querySelector('button[type="submit"]'); button.disabled = true; try { const result = await requiredApi({ action: 'login', email: data.get('email'), password: data.get('password') }); await requiredApi({ action: 'admin_dashboard', token: result.token }); localStorage.setItem(ADMIN_TOKEN_KEY, result.token); localStorage.setItem('blog_admin_user', JSON.stringify(result.user)); location.href = 'admin.html'; } catch (error) { showMessage(form, error.message || 'Admin account required.', true); } finally { button.disabled = false; } }); }
 
-async function setupAdminPage() { const page = document.querySelector('.admin-page'); if (!page) return; if (!isAdmin) { location.replace('admin-login.html'); return; } try { const data = await requiredApi({ action: 'admin_dashboard', token: localStorage.getItem(TOKEN_KEY) }); page.querySelector('.admin-content').hidden = false; page.querySelector('#admin-user-count').textContent = data.stats.users; page.querySelector('#admin-post-count').textContent = data.stats.posts; page.querySelector('#admin-comment-count').textContent = data.stats.comments; const cell = (row, value) => { const td = document.createElement('td'); td.textContent = value || '-'; row.appendChild(td); }; const users = page.querySelector('#admin-users'); data.users.forEach(item => { const row = document.createElement('tr'); cell(row, item.name); cell(row, item.email); cell(row, dateText(item.createdAt)); users.appendChild(row); }); const posts = page.querySelector('#admin-posts'); data.posts.forEach(item => { const row = document.createElement('tr'); cell(row, item.title); cell(row, item.authorName); cell(row, item.category); cell(row, dateText(item.createdAt)); cell(row, item.visibility === 'private' ? 'Private' : 'Public'); const td = document.createElement('td'); const button = document.createElement('button'); button.className = 'admin-action'; button.textContent = item.visibility === 'private' ? 'Publish' : 'Hide'; button.onclick = async () => { await requiredApi({ action: 'admin_post_visibility', token: localStorage.getItem(TOKEN_KEY), id: item.id, visibility: item.visibility === 'private' ? 'public' : 'private' }); location.reload(); }; td.appendChild(button); row.appendChild(td); posts.appendChild(row); }); const comments = page.querySelector('#admin-comments'); data.comments.forEach(item => { const row = document.createElement('tr'); cell(row, item.content); cell(row, item.authorName); cell(row, item.postTitle); cell(row, dateText(item.createdAt)); const td = document.createElement('td'); const button = document.createElement('button'); button.className = 'admin-action'; button.textContent = item.visibility === 'private' ? 'Publish' : 'Hide'; button.onclick = async () => { await requiredApi({ action: 'admin_comment_visibility', token: localStorage.getItem(TOKEN_KEY), id: item.id, visibility: item.visibility === 'private' ? 'public' : 'private' }); location.reload(); }; td.appendChild(button); row.appendChild(td); comments.appendChild(row); }); } catch { clearAuth(); location.replace('admin-login.html'); } }
+async function setupAdminPage() { const page = document.querySelector('.admin-page'); if (!page) return; if (!isAdmin) { location.replace('admin-login.html'); return; } page.querySelector('.admin-content').hidden = false; }
 
 function setupAdminTabs() {
   const buttons = document.querySelectorAll('[data-admin-nav]');
@@ -150,7 +152,8 @@ function setupAdminTabs() {
 async function refreshAdminMetrics() {
   const page = document.querySelector('.admin-page'); if (!page || !isAdmin) return;
   try {
-    const data = await requiredApi({ action: 'admin_dashboard', token: localStorage.getItem(TOKEN_KEY) });
+    const data = adminDashboardCache || await requiredApi({ action: 'admin_dashboard', token: localStorage.getItem(TOKEN_KEY) });
+    adminDashboardCache = null;
     [['user', data.stats.users, '명'], ['post', data.stats.posts, '개'], ['comment', data.stats.comments, '개']].forEach(([type, count, unit]) => {
       const navCount = document.querySelector(`#admin-${type}-nav-count`);
       const panelCount = document.querySelector(`#admin-${type}-panel-count`);
