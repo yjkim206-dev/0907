@@ -1,4 +1,4 @@
-const API_URL = 'https://script.google.com/macros/s/AKfycbylJ2p8X84gtnM_rnX_2tSXDYBIvJh957I5-pnLzE3Yc1N63vHRNKfscWIUw3AYVJ2t/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzW1q_cZcIh8IPG0-wAlzG6Mpz8EnqCCMsmdkPTyG02Z2q66Ky0c7sRbZAl3gODIiVN/exec';
 const isAdminContext = () => location.pathname.endsWith('/admin.html') || location.pathname.endsWith('admin.html');
 const MEMBER_TOKEN_KEY = 'blog_member_auth_token';
 const ADMIN_TOKEN_KEY = 'blog_admin_auth_token';
