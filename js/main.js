@@ -38,6 +38,17 @@ function postExcerpt(content, limit = 150) {
   return text.length > limit ? `${text.slice(0, limit)}…` : text;
 }
 
+function postThumbnail(post, className) {
+  if (!post.imageUrl) return null;
+  const image = document.createElement('img');
+  image.className = className;
+  image.src = post.imageUrl;
+  image.alt = post.title ? `${post.title} 대표 사진` : '게시글 대표 사진';
+  image.loading = 'lazy';
+  image.referrerPolicy = 'no-referrer';
+  return image;
+}
+
 function createPostListItem(post) {
   const item = document.createElement('article');
   item.className = 'list-post';
@@ -46,6 +57,7 @@ function createPostListItem(post) {
   date.textContent = `${postDate(post.createdAt)}\n${post.category || ''}`;
   date.style.whiteSpace = 'pre-line';
   const body = document.createElement('div');
+  const image = postThumbnail(post, 'list-post-image');
   const heading = document.createElement('h2');
   const title = document.createElement('a');
   title.href = postLink(post.id);
@@ -57,6 +69,7 @@ function createPostListItem(post) {
   link.className = 'text-link';
   link.href = postLink(post.id);
   link.textContent = '자세히 읽기 →';
+  if (image) body.appendChild(image);
   body.append(heading, excerpt, link);
   item.append(date, body);
   return item;
@@ -76,6 +89,7 @@ async function setupHomePosts() {
     posts.slice(0, 3).forEach(post => {
       const card = document.createElement('article');
       card.className = 'post-card';
+      const image = postThumbnail(post, 'post-card-image');
       const meta = document.createElement('p');
       meta.className = 'post-meta';
       meta.textContent = `${post.category || ''} · ${postDate(post.createdAt)}`;
@@ -91,6 +105,7 @@ async function setupHomePosts() {
       link.className = 'text-link';
       link.href = postLink(post.id);
       link.textContent = '자세히 읽기 →';
+      if (image) card.appendChild(image);
       card.append(meta, heading, excerpt, link);
       grid.appendChild(card);
     });
