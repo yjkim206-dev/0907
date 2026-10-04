@@ -38,5 +38,16 @@
       draw(posts);
     } catch { location.replace('login.html?next=profile.html'); }
   };
+  const passwordForm = document.querySelector('[data-password-form]');
+  passwordForm?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const fields = new FormData(passwordForm);
+    const note = passwordForm.querySelector('.form-message');
+    if (fields.get('newPassword') !== fields.get('confirmPassword')) { note.textContent = '새 비밀번호가 일치하지 않습니다.'; note.style.color = '#c0392b'; return; }
+    const button = passwordForm.querySelector('button'); button.disabled = true;
+    try { const result = await request({ action: 'password_change', token, currentPassword: fields.get('currentPassword'), newPassword: fields.get('newPassword') }); note.textContent = result.message; note.style.color = ''; passwordForm.reset(); }
+    catch (error) { note.textContent = error.message; note.style.color = '#c0392b'; }
+    finally { button.disabled = false; }
+  });
   load();
 })();

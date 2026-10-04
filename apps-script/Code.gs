@@ -40,6 +40,7 @@ function doPost(e) {
     if (data.action === 'login') return login_(data);
     if (data.action === 'me') return getUser_(data.token);
     if (data.action === 'logout') return logout_(data.token);
+    if (data.action === 'password_change') return changePassword_(data);
     if (data.action === 'post_create') return createPost_(data);
     if (data.action === 'post_list') return listPosts_(data.token);
     if (data.action === 'post_get') return getPost_(data.id, data.token);
@@ -152,6 +153,29 @@ function logout_(token) {
     if (String(rows[i][0]) === String(token)) sessions.deleteRow(i + 1);
   }
   return json_({ ok: true, message: '로그아웃되었습니다.' });
+}
+
+function changePassword_(data) {
+  const session = validSession_(data.token);
+  if (!session) return json_({ ok: false, message: '로그인이 필요합니다.' });
+  const currentPassword = String(data.currentPassword || '');
+  const newPassword = String(data.newPassword || '');
+  if (!currentPassword || newPassword.length < 8) return json_({ ok: false, message: '새 비밀번호는 8자 이상으로 입력해 주세요.' });
+  if (currentPassword === newPassword) return json_({ ok: false, message: '현재 비밀번호와 다른 비밀번호를 입력해 주세요.' });
+  const users = sheet_(USERS_SHEET);
+  const rows = users.getDataRange().getValues();
+  const index = rows.findIndex(row => String(row[0]) === String(session.userId));
+  if (index < 1) return json_({ ok: false, message: '사용자를 찾을 수 없습니다.' });
+  const user = rows[index];
+  if (hash_(currentPassword, user[4]) !== user[3]) return json_({ ok: false, message: '현재 비밀번호가 일치하지 않습니다.' });
+  const salt = Utilities.getUuid();
+  users.getRange(index + 1, 4, 1, 2).setValues([[hash_(newPassword, salt), salt]]);
+  const sessions = sheet_(SESSIONS_SHEET);
+  const sessionRows = sessions.getDataRange().getValues();
+  for (let i = sessionRows.length - 1; i >= 1; i--) {
+    if (String(sessionRows[i][1]) === String(session.userId) && String(sessionRows[i][0]) !== String(data.token)) sessions.deleteRow(i + 1);
+  }
+  return json_({ ok: true, message: '비밀번호가 변경되었습니다.' });
 }
 
 function subscribe_(data) {
